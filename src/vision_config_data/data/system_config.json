@@ -16,8 +16,8 @@
             "frame_rate": 30,
             "api_preference": "ANY"
         },
-        "199": {
-            "location": "left_back",
+        "cam13": {
+            "location": "left",
             "format": "MJPG",
             "height": 800,
             "width": 1280,
@@ -25,7 +25,7 @@
             "api_preference": "V4L2"
         },
         "cam14": {
-            "location": "right_back",
+            "location": "center",
             "format": "MJPG",
             "height": 800,
             "width": 1280,
@@ -42,7 +42,7 @@
         }
     },
     "extrinsics": {
-        "center_front": {
+        "center": {
             "rotation": [
                 [
                     0.0,
@@ -66,7 +66,7 @@
                 0.0
             ]
         },
-        "left_front": {
+        "left": {
             "rotation": [
                 [
                     -0.5114678144454956,
@@ -90,7 +90,7 @@
                 0.20647208392620087
             ]
         },
-        "right_front": {
+        "right": {
             "rotation": [
                 [
                     0.5106198191642761,
