@@ -1,0 +1,14 @@
+<html>
+<body>
+    <h2>ROS2 Seasocks Image Viewer</h2>
+    <img id="image" width="640" height="480"/>
+    <script>
+        const socket = new WebSocket("ws://localhost:9090/image");
+        socket.binaryType = 'blob';
+        socket.onmessage = function(event) {
+            const img = document.getElementById("image");
+            img.src = URL.createObjectURL(event.data);
+        };
+    </script>
+</body>
+</html>

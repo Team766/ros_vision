@@ -39,5 +39,6 @@ link_directories(${VISION_DEPS_INSTALL_DIR}/seasocks-install/lib)
 
 # Pass this clearly to your subdirectory
 add_subdirectory(src/usb_camera)
+add_subdirectory(src/seasocks_viewer)
 
 ament_package()
