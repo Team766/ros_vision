@@ -6,7 +6,7 @@
 class CameraPublisher : public rclcpp::Node {
 public:
     CameraPublisher()
-        : Node("camera_publisher"), cap_(0) {
+        : Node("camera_publisher"), cap_() {
 
         RCLCPP_INFO(this->get_logger(), "Opening camera on idx: '%d'", 0);
         cap_.open(0, cv::CAP_V4L2);
