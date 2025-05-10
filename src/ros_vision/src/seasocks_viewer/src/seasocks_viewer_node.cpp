@@ -23,12 +23,15 @@ public:
         clients_.erase(socket);
     }
 
-    void sendImage(const std::vector<uint8_t>& imageData) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        for (auto* client : clients_) {
-            //client->send(reinterpret_cast<const char*>(imageData.data()), imageData.size());
-            client->send(imageData.data(), imageData.size());
-        }
+    void sendImage(Server& server, const std::vector<uint8_t>& imageData) {
+
+        server.execute([this, imageData]() {
+            std::lock_guard<std::mutex> lock(mutex_);
+            for (auto* client : clients_) {
+                //client->send(reinterpret_cast<const char*>(imageData.data()), imageData.size());
+                client->send(imageData.data(), imageData.size());
+            }
+        });
     }
 
 private:
@@ -61,11 +64,12 @@ public:
         RCLCPP_INFO(get_logger(), "Seasocks viewer running at ws://localhost:9090/image");
     }
 
-    ~SeasocksViewerNode() {
-        server_->terminate();
+    ~SeasocksViewerNode() override {
+        server_->execute([this]() { server_->terminate(); });  // call terminate on correct thread
         if (server_thread_.joinable()) {
             server_thread_.join();
         }
+
     }
 
 private:
@@ -75,7 +79,7 @@ private:
         std::vector<uint8_t> buffer;
         cv::imencode(".jpg", cv_ptr->image, buffer);
 
-        image_handler_->sendImage(buffer);
+        image_handler_->sendImage(*server_, buffer);
     }
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;
