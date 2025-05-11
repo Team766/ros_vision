@@ -43,6 +43,13 @@ class SeasocksViewerNode : public rclcpp::Node {
 public:
     SeasocksViewerNode()
         : Node("seasocks_viewer_node") {
+
+        // Declare parameters
+        this->declare_parameter<std::string>("topic_name", "camera/image_raw");
+        std::string topic_name = this->get_parameter("topic_name").as_string();
+
+        this->declare_parameter<int>("port", 9090);
+        int port = this->get_parameter("port").as_int();
         
         // Seasocks setup
         auto logger = std::make_shared<PrintfLogger>();
@@ -53,15 +60,17 @@ public:
         std::string package_share_directory = ament_index_cpp::get_package_share_directory("seasocks_viewer");
         std::string web_root = package_share_directory + "/web";
         
-        server_thread_ = std::thread([this, web_root] {
-            server_->serve(web_root.c_str(), 9090);  // serve on port 9090
+        server_thread_ = std::thread([this, web_root, port] {
+            server_->serve(web_root.c_str(), port);
         });
 
         subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "camera/image_raw", 10,
+            topic_name, 10,
             std::bind(&SeasocksViewerNode::imageCallback, this, std::placeholders::_1));
 
-        RCLCPP_INFO(get_logger(), "Seasocks viewer running at ws://localhost:9090/image");
+        RCLCPP_INFO(get_logger(), "Seasocks viewer running at ws://localhost:'%d'/image", port);
+        RCLCPP_INFO(get_logger(), "Reading images from topic: '%s'", topic_name.c_str());
+
     }
 
     ~SeasocksViewerNode() override {

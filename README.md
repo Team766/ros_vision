@@ -22,7 +22,7 @@ Clone the repo: `git clone git@github.com:Team766/ros_vision.git`
 ```
 cd ros_vision
 source /opt/ros/humble/setup.bash
-colcon build
+colcon build --event-handlers console_direct+
 ```
 
 ### Run The Example
@@ -31,19 +31,18 @@ colcon build
 - in one terminal run:
 ```
 source install/setup.bash
-ros2 run usb_camera usb_camera_node
+ros2 run usb_camera usb_camera_node --ros-args -p camera_idx:=0 -p topic_name:=camera/image_raw
 ```
-This will start the camera process which initializes the camera, reads frames from it, and publishes them to a topic called `camera/image_raw`.  If there is an error it probably means your camera is not on `/dev/video0`.  Try another index and rebuild.
+This will start the camera process which initializes the camera in index 0, reads frames from it, and publishes them to a topic called `camera/image_raw`.  If there is an error it probably means your camera is not on `/dev/video0`.  Try another index and rebuild.
 
 If everything is working you should see something like this:
 
 ```
-[ WARN:0] global ./modules/videoio/src/cap_gstreamer.cpp (1100) open OpenCV | GStreamer warning: Cannot query video position: status=0, value=-1, duration=-1
-[INFO] [1746587393.692884138] [camera_publisher]: Opening camera on idx: '0'
-[ WARN:0] global ./modules/videoio/src/cap_gstreamer.cpp (1100) open OpenCV | GStreamer warning: Cannot query video position: status=0, value=-1, duration=-1
-[INFO] [1746587394.465825090] [camera_publisher]: Width: '1920'
-[INFO] [1746587394.465877755] [camera_publisher]: Height: '1080'
-[INFO] [1746587394.465889978] [camera_publisher]: FPS: '5'
+[INFO] [1746927683.481375637] [camera_publisher]: Opening camera on idx: '0'
+[INFO] [1746927683.781965633] [camera_publisher]: Width: '1280'
+[INFO] [1746927683.782025468] [camera_publisher]: Height: '800'
+[INFO] [1746927683.782056474] [camera_publisher]: FPS: '100'
+[INFO] [1746927683.782076952] [camera_publisher]: Pubishing on Topic: 'camera/image_raw'
 
 ```
 
@@ -51,23 +50,17 @@ If everything is working you should see something like this:
 
 ```
 source install/setup.bash
-ros2 run usb_camera image_processor_node
+ros2 run seasocks_viewer seasocks_viewer_node --ros-args -p port:=9090 -p topic_name:=camera/image_raw
 ```
 
-If everything is working properly you should see messages scrolling by like this:
+If everything is working properly you should see the following output
 
 ```
-[INFO] [1746586567.808330542] [image_processor]: Mean Intensity: 46.40, Processing Time: 11 ms
-[INFO] [1746586568.001492335] [image_processor]: Mean Intensity: 46.48, Processing Time: 5 ms
-[INFO] [1746586568.206662896] [image_processor]: Mean Intensity: 46.56, Processing Time: 4 ms
-[INFO] [1746586568.412797075] [image_processor]: Mean Intensity: 46.59, Processing Time: 2 ms
-[INFO] [1746586568.623250841] [image_processor]: Mean Intensity: 46.53, Processing Time: 4 ms
-[INFO] [1746586568.829484276] [image_processor]: Mean Intensity: 46.56, Processing Time: 4 ms
-[INFO] [1746586569.035463728] [image_processor]: Mean Intensity: 45.67, Processing Time: 2 ms
-[INFO] [1746586569.247437095] [image_processor]: Mean Intensity: 47.45, Processing Time: 4 ms
-[INFO] [1746586569.450778828] [image_processor]: Mean Intensity: 48.38, Processing Time: 2 ms
-[INFO] [1746586569.663615818] [image_processor]: Mean Intensity: 47.88, Processing Time: 4 ms
+info: Serving content from /home/cpadwick/code/ros_vision/install/ros_vision/share/seasocks_viewer/web
+info: Listening on http://cpadwick-GS60-6QE:9090/
+[INFO] [1746928224.850683239] [seasocks_viewer_node]: Seasocks viewer running at ws://localhost:'9090'/image
+[INFO] [1746928224.850807410] [seasocks_viewer_node]: Reading images from topic: 'camera/image_raw'
 ```
 
-What is happening is that the image_processor node is reading messages off of the `camera/image_raw` topic, and is processing each image and computing the mean value.
+What is happening is that the seasocks viewer node is reading messages off of the `camera/image_raw` topic, and is showing it on the web page at http://localhost:9090 . Navigate to the web page and verify that you can see the camera images.
 
