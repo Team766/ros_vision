@@ -19,7 +19,7 @@ add_executable(image_processor_node src/image_processor_node.cpp)
 ament_target_dependencies(image_processor_node rclcpp sensor_msgs cv_bridge OpenCV)
 
 add_dependencies(usb_camera_node vision_deps_external)
-add_dependencies(usb_camera_node image_processor_node)
+add_dependencies(image_processor_node vision_deps_external)
 
 install(TARGETS
   usb_camera_node
