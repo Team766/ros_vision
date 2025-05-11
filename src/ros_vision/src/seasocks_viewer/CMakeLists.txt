@@ -24,6 +24,8 @@ target_link_libraries(seasocks_viewer_node
   Threads::Threads
   ZLIB::ZLIB)
 
+add_dependencies(seasocks_viewer_node vision_deps_external)
+
 install(TARGETS seasocks_viewer_node
   DESTINATION lib/${PROJECT_NAME})
 

@@ -25,6 +25,8 @@ ExternalProject_Add(vision_deps_external
     CMAKE_ARGS
         -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
         -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_CUDA_COMPILER=clang++-17
+        -DCMAKE_CXX_COMPILER=clang++-17 
     BUILD_COMMAND ${CMAKE_COMMAND} --build . --parallel ${NUM_PROCESSORS}
     INSTALL_COMMAND ${CMAKE_COMMAND} --install .
 )
