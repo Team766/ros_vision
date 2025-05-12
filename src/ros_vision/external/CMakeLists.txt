@@ -33,7 +33,7 @@ ExternalProject_Add(
 )
 
 # Add wpilib package
-set(WPILIB_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/opencv-install)
+set(WPILIB_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/wpilib-install)
 ExternalProject_Add(
     wpilib
     PREFIX ${CMAKE_BINARY_DIR}/wpilib
