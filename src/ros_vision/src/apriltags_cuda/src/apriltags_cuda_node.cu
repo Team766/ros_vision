@@ -25,7 +25,7 @@ public:
         std::string topic_name = this->get_parameter("topic_name").as_string();
 
         subscriber_ = this->create_subscription<sensor_msgs::msg::Image>(
-            topic_name, 10,
+            topic_name, 1,
             std::bind(&ApriltagsDetector::imageCallback, this, std::placeholders::_1));
 
         // Apriltag detector setup
@@ -74,8 +74,7 @@ public:
 
         RCLCPP_INFO(this->get_logger(), "GPU Apriltag Detector created, took %ld ms", processing_time);
         
-
-        //publisher_ = this->create_publisher<sensor_msgs::msg::Image>(topic_name, 10);
+        publisher_ = this->create_publisher<sensor_msgs::msg::Image>("apriltags/images", 10);
     }
 
     ~ApriltagsDetector() {
@@ -120,6 +119,11 @@ private:
             detector_->ReinitializeDetections();
         }
 
+        // Publish the message to the viewer
+        auto outgoing_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgr_img).toImageMsg();
+        outgoing_msg->header.stamp = this->now();
+        publisher_->publish(*outgoing_msg);
+
         auto end = std::chrono::high_resolution_clock::now();
         auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
@@ -127,6 +131,7 @@ private:
     }
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscriber_;
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
     apriltag_family_t* tag_family_;
     apriltag_detector_t* tag_detector_;
     apriltag_detection_info_t info_;

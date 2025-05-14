@@ -29,7 +29,7 @@ public:
         cap_.set(cv::CAP_PROP_FRAME_HEIGHT, 800);
         cap_.set(cv::CAP_PROP_CONVERT_RGB, true);
 
-        publisher_ = this->create_publisher<sensor_msgs::msg::Image>(topic_name, 10);
+        publisher_ = this->create_publisher<sensor_msgs::msg::Image>(topic_name, 1);
 
         RCLCPP_INFO(this->get_logger(), "Width: '%d'", static_cast<int>(cap_.get(cv::CAP_PROP_FRAME_WIDTH)));
         RCLCPP_INFO(this->get_logger(), "Height: '%d'", static_cast<int>(cap_.get(cv::CAP_PROP_FRAME_HEIGHT)));
@@ -37,7 +37,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "Pubishing on Topic: '%s'", topic_name.c_str());
 
         timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(10),  // ~100fps
+            std::chrono::milliseconds(16),  // ~60fps
             std::bind(&CameraPublisher::timerCallback, this));
     }
 
