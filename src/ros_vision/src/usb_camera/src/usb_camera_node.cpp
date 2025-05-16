@@ -29,7 +29,7 @@ public:
         cap_.set(cv::CAP_PROP_FRAME_HEIGHT, 800);
         cap_.set(cv::CAP_PROP_CONVERT_RGB, true);
 
-        publisher_ = this->create_publisher<sensor_msgs::msg::Image>(topic_name, 1);
+        publisher_ = this->create_publisher<sensor_msgs::msg::Image>(topic_name, 10);
 
         RCLCPP_INFO(this->get_logger(), "Width: '%d'", static_cast<int>(cap_.get(cv::CAP_PROP_FRAME_WIDTH)));
         RCLCPP_INFO(this->get_logger(), "Height: '%d'", static_cast<int>(cap_.get(cv::CAP_PROP_FRAME_HEIGHT)));
@@ -52,6 +52,7 @@ private:
 
         auto msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
         msg->header.stamp = this->now();
+        msg->header.frame_id = "camera_frame";  // <-- add this line
 
         publisher_->publish(*msg);
     }
