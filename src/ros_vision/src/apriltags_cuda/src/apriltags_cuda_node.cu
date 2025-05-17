@@ -122,6 +122,7 @@ private:
         // Publish the message to the viewer
         auto outgoing_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgr_img).toImageMsg();
         outgoing_msg->header.stamp = this->now();
+        outgoing_msg->header.frame_id = "apriltag_detections";
         publisher_->publish(*outgoing_msg);
 
         auto end = std::chrono::high_resolution_clock::now();
