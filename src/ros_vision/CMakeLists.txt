@@ -44,5 +44,10 @@ add_subdirectory(src/usb_camera)
 add_subdirectory(src/seasocks_viewer)
 add_subdirectory(src/apriltags_cuda)
 
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 
 ament_package()
