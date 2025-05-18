@@ -35,6 +35,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(glog REQUIRED)
+find_package(image_transport REQUIRED)
 
 # Use the propagated install directory from parent (ros_vision)
 include_directories(
@@ -71,7 +72,7 @@ add_library(apriltag_cuda ${CUDA_LIB_SOURCES})
 add_dependencies(apriltag_cuda vision_deps_external)
 
 add_executable(apriltags_cuda_node src/apriltags_cuda_node.cu)
-ament_target_dependencies(apriltags_cuda_node rclcpp sensor_msgs cv_bridge)
+ament_target_dependencies(apriltags_cuda_node rclcpp sensor_msgs cv_bridge image_transport)
 target_link_libraries(apriltags_cuda_node
     apriltag_cuda
     ${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib/libapriltag.so

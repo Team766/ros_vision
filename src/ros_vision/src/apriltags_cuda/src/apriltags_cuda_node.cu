@@ -2,6 +2,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.hpp>
 #include <opencv2/opencv.hpp>
 
 #include "apriltag_gpu.h"
@@ -73,8 +74,14 @@ public:
         info_.cy = cam.cy;
 
         RCLCPP_INFO(this->get_logger(), "GPU Apriltag Detector created, took %ld ms", processing_time);
-        
-        publisher_ = this->create_publisher<sensor_msgs::msg::Image>("apriltags/images", 10);
+    }
+
+    void init() {
+        // The object needs to be constructed before using shared_from_this, thus
+        // it is broken off into another method.
+        it_ = std::make_shared<image_transport::ImageTransport>(shared_from_this());
+        publisher_ = it_->advertise("apriltags/images", 10);
+
     }
 
     ~ApriltagsDetector() {
@@ -123,7 +130,7 @@ private:
         auto outgoing_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgr_img).toImageMsg();
         outgoing_msg->header.stamp = this->now();
         outgoing_msg->header.frame_id = "apriltag_detections";
-        publisher_->publish(*outgoing_msg);
+        publisher_.publish(outgoing_msg);
 
         auto end = std::chrono::high_resolution_clock::now();
         auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -132,7 +139,10 @@ private:
     }
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscriber_;
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
+
+    std::shared_ptr<image_transport::ImageTransport> it_;
+    image_transport::Publisher publisher_;
+
     apriltag_family_t* tag_family_;
     apriltag_detector_t* tag_detector_;
     apriltag_detection_info_t info_;
@@ -142,7 +152,9 @@ private:
 
 int main(int argc, char * argv[]) {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<ApriltagsDetector>());
+    auto node = std::make_shared<ApriltagsDetector>();
+    node->init();
+    rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;
 }
