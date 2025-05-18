@@ -25,6 +25,9 @@ public:
         this->declare_parameter<std::string>("topic_name", "camera/image_raw");
         std::string topic_name = this->get_parameter("topic_name").as_string();
 
+        this->declare_parameter<std::string>("publish_to_topic", "apriltags/images");
+        publish_to_topic_ = this->get_parameter("publish_to_topic").as_string();
+
         subscriber_ = this->create_subscription<sensor_msgs::msg::Image>(
             topic_name, 1,
             std::bind(&ApriltagsDetector::imageCallback, this, std::placeholders::_1));
@@ -80,7 +83,8 @@ public:
         // The object needs to be constructed before using shared_from_this, thus
         // it is broken off into another method.
         it_ = std::make_shared<image_transport::ImageTransport>(shared_from_this());
-        publisher_ = it_->advertise("apriltags/images", 10);
+        publisher_ = it_->advertise(publish_to_topic_, 10);
+        RCLCPP_INFO(this->get_logger(), "Publishing on topic: %s", publish_to_topic_.c_str());
 
     }
 
@@ -142,6 +146,7 @@ private:
 
     std::shared_ptr<image_transport::ImageTransport> it_;
     image_transport::Publisher publisher_;
+    std::string publish_to_topic_;
 
     apriltag_family_t* tag_family_;
     apriltag_detector_t* tag_detector_;

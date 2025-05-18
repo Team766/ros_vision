@@ -51,7 +51,9 @@ def scan_for_cameras():
         msg += "With an arducam, try resetting the serial number so that the Device Name is 'Camera': https://docs.arducam.com/UVC-Camera/Serial-Number-Tool-Guide/"
         raise Exception(msg)
 
-    cameras_by_serial_id = {item["serial"]: int(item["video_device"][-1]) for item in results}
+    cameras_by_serial_id = {
+        item["serial"]: int(item["video_device"][-1]) for item in results
+    }
     return cameras_by_serial_id
 
 
@@ -59,7 +61,7 @@ def generate_launch_description():
 
     # First we scan for cameras.
     cameras_by_serial_id = scan_for_cameras()
-    print(f'Found cameras: {cameras_by_serial_id}')
+    print(f"Found cameras: {cameras_by_serial_id}")
 
     # For each camera found, set up the image processing pipeline.
     nodes = []
@@ -72,7 +74,7 @@ def generate_launch_description():
                 parameters=[
                     {
                         "camera_idx": camera_idx,
-                        "topic_name": f"camera_{serial_id}/image_raw",
+                        "topic_name": f"cameras/camera_{serial_id}/image_raw",
                     },
                 ],
             )
@@ -83,7 +85,10 @@ def generate_launch_description():
                 executable="apriltags_cuda_node",
                 name=f"apriltags",
                 parameters=[
-                    {"topic_name": f"camera_{serial_id}/image_raw"},
+                    {
+                        "topic_name": f"cameras/camera_{serial_id}/image_raw",
+                        "publish_to_topic": f"apriltags/camera_{serial_id}/images",
+                    },
                 ],
             )
         )

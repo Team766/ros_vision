@@ -12,10 +12,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wno-deprecated-anon-enum-enum-conversion)
-  add_compile_options(-Wno-c99-extensions)
-endif()
+add_compile_options(-Wno-deprecated-anon-enum-enum-conversion)
+add_compile_options(-Wno-c99-extensions)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
