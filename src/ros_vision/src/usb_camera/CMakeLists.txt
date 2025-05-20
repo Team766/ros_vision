@@ -13,13 +13,17 @@ find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(image_transport REQUIRED)
 
+include_directories(
+  ${CMAKE_INSTALL_PREFIX}/include
+)
+
 add_executable(usb_camera_node src/usb_camera_node.cpp)
 ament_target_dependencies(usb_camera_node rclcpp sensor_msgs cv_bridge image_transport OpenCV)
 
 add_executable(image_processor_node src/image_processor_node.cpp)
 ament_target_dependencies(image_processor_node rclcpp sensor_msgs cv_bridge OpenCV)
 
-add_dependencies(usb_camera_node vision_deps_external)
+add_dependencies(usb_camera_node vision_deps_external vision_utils)
 add_dependencies(image_processor_node vision_deps_external)
 
 install(TARGETS

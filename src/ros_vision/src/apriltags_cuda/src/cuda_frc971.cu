@@ -16,11 +16,13 @@ void CheckAndSynchronize(std::string_view message) {
 }
 
 void MaybeCheckAndSynchronize() {
-  if (FLAGS_sync) CheckAndSynchronize();
+  if (FLAGS_sync)
+    CheckAndSynchronize();
 }
 
 void MaybeCheckAndSynchronize(std::string_view message) {
-  if (FLAGS_sync) CheckAndSynchronize(message);
+  if (FLAGS_sync)
+    CheckAndSynchronize(message);
 }
 
-}  // namespace frc971::apriltag
+} // namespace frc971::apriltag

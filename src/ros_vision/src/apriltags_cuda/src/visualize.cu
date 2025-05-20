@@ -22,10 +22,9 @@ int main(int argc, char *argv[]) {
   apriltag_detector_add_family(td, tf);
 
   if (errno == ENOMEM) {
-    printf(
-        "Unable to add family to detector due to insufficient memory to "
-        "allocate the tag-family decoder with the default maximum hamming "
-        "value of 2. Try choosing an alternative tag family.\n");
+    printf("Unable to add family to detector due to insufficient memory to "
+           "allocate the tag-family decoder with the default maximum hamming "
+           "value of 2. Try choosing an alternative tag family.\n");
     exit(-1);
   }
 

@@ -14,7 +14,7 @@ using namespace cv;
 
 // Fixture for the GpuDetector tests
 class GpuDetectorTest : public ::testing::Test {
- protected:
+protected:
   Mat yuyv_img, bgr_img, yuyv_img_notags, bgr_img_notags;
 
   apriltag_family_t *tf = nullptr;

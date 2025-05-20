@@ -46,6 +46,7 @@ include_directories(
   ${VISION_DEPS_INSTALL_DIR}/json-install/include/
   ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag
   ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag/common
+  ${CMAKE_INSTALL_PREFIX}/include
 )
 
 set(CUDA_LIB_SOURCES 
@@ -67,7 +68,7 @@ set(CUDA_LIB_SOURCES
 # Add a library with the above source files
 add_library(apriltag_cuda ${CUDA_LIB_SOURCES})
 
-add_dependencies(apriltag_cuda vision_deps_external)
+add_dependencies(apriltag_cuda vision_deps_external vision_utils)
 
 add_executable(apriltags_cuda_node src/apriltags_cuda_node.cu)
 ament_target_dependencies(apriltags_cuda_node rclcpp sensor_msgs cv_bridge image_transport)

@@ -146,7 +146,7 @@ __global__ void InternalThreshold(const uint8_t *decimated_image,
   }
 }
 
-}  // namespace
+} // namespace
 
 void CudaToGreyscaleAndDecimateHalide(
     const uint8_t *color_image, uint8_t *gray_image, uint8_t *decimated_image,
@@ -200,4 +200,4 @@ void CudaToGreyscaleAndDecimateHalide(
   }
 }
 
-}  // namespace frc971::apriltag
+} // namespace frc971::apriltag

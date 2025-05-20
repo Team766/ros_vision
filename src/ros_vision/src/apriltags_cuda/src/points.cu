@@ -30,4 +30,4 @@ std::ostream &operator<<(std::ostream &os, const IndexPoint &point) {
 
 static_assert(sizeof(IndexPoint) == 8, "IndexPoint didn't pack right.");
 
-}  // namespace frc971::apriltag
+} // namespace frc971::apriltag

@@ -40,6 +40,7 @@ include_directories(${VISION_DEPS_INSTALL_DIR}/seasocks-install/include)
 link_directories(${VISION_DEPS_INSTALL_DIR}/seasocks-install/lib)
 
 # Pass this clearly to your subdirectory
+add_subdirectory(src/vision_utils)
 add_subdirectory(src/usb_camera)
 add_subdirectory(src/seasocks_viewer)
 add_subdirectory(src/apriltags_cuda)
@@ -49,5 +50,18 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+file(GLOB_RECURSE ALL_SOURCE_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
+)
 
+add_custom_target(clang_format
+    COMMAND clang-format -i ${ALL_SOURCE_FILES}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Running clang-format on all source files"
+)
 ament_package()

@@ -28,15 +28,14 @@ typedef std::chrono::duration<float, std::milli> float_milli;
 
 // Returns true if the QuadBoundaryPoint is nonzero.
 struct NonZero {
-  __host__ __device__ __forceinline__ bool operator()(
-      const QuadBoundaryPoint &a) const {
+  __host__ __device__ __forceinline__ bool
+  operator()(const QuadBoundaryPoint &a) const {
     return a.nonzero();
   }
 };
 
 // Always returns true (only used for scratch space calcs).
-template <typename T>
-struct True {
+template <typename T> struct True {
   __host__ __device__ __forceinline__ bool operator()(const T &) const {
     return true;
   }
@@ -44,8 +43,7 @@ struct True {
 
 // Computes and returns the scratch space needed for DeviceRadixSort::SortKeys
 // of the provided key with the provided number of elements.
-template <typename T>
-static size_t RadixSortScratchSpace(size_t elements) {
+template <typename T> static size_t RadixSortScratchSpace(size_t elements) {
   size_t temp_storage_bytes = 0;
   QuadBoundaryPointDecomposer decomposer;
   cub::DeviceRadixSort::SortKeys(nullptr, temp_storage_bytes, (T *)(nullptr),
@@ -67,8 +65,7 @@ static size_t DeviceSelectIfScratchSpace(size_t elements, int *num_markers) {
 }
 
 // Always returns the first element (only used for scratch space calcs).
-template <typename T>
-struct CustomFirst {
+template <typename T> struct CustomFirst {
   __host__ __device__ __forceinline__ T operator()(const T &a,
                                                    const T & /*b*/) const {
     return a;
@@ -109,17 +106,14 @@ static size_t DeviceScanInclusiveScanByKeyScratchSpace(size_t elements) {
   return temp_storage_bytes;
 }
 
-}  // namespace
+} // namespace
 
 GpuDetector::GpuDetector(size_t width, size_t height,
                          apriltag_detector_t *tag_detector,
                          CameraMatrix camera_matrix,
                          DistCoeffs distortion_coefficients)
-    : width_(width),
-      height_(height),
-      tag_detector_(tag_detector),
-      color_image_host_(width * height * 2),
-      gray_image_host_(width * height),
+    : width_(width), height_(height), tag_detector_(tag_detector),
+      color_image_host_(width * height * 2), gray_image_host_(width * height),
       color_image_device_(width * height * 2),
       gray_image_device_(width * height),
       decimated_image_device_(width / 2 * height / 2),
@@ -141,8 +135,7 @@ GpuDetector::GpuDetector(size_t width, size_t height,
       filtered_is_local_peak_device_(line_fit_points_device_.size()),
       compressed_peaks_device_(line_fit_points_device_.size()),
       sorted_compressed_peaks_device_(line_fit_points_device_.size()),
-      peak_extents_device_(kMaxBlobs),
-      camera_matrix_(camera_matrix),
+      peak_extents_device_(kMaxBlobs), camera_matrix_(camera_matrix),
       distortion_coefficients_(distortion_coefficients),
       fit_quads_device_(kMaxBlobs),
       radix_sort_tmpstorage_device_(RadixSortScratchSpace<QuadBoundaryPoint>(
@@ -231,11 +224,10 @@ namespace {
 // Computes a massive image of 4x QuadBoundaryPoint per pixel with a
 // QuadBoundaryPoint for each pixel pair which crosses a blob boundary.
 template <size_t kBlockWidth, size_t kBlockHeight>
-__global__ void BlobDiff(const uint8_t *thresholded_image,
-                         const uint32_t *blobs,
-                         const uint32_t *union_markers_size,
-                         QuadBoundaryPoint *result, size_t width,
-                         size_t height) {
+__global__ void
+BlobDiff(const uint8_t *thresholded_image, const uint32_t *blobs,
+         const uint32_t *union_markers_size, QuadBoundaryPoint *result,
+         size_t width, size_t height) {
   __shared__ uint32_t temp_blob_storage[kBlockWidth * kBlockHeight];
   __shared__ uint8_t temp_image_storage[kBlockWidth * kBlockHeight];
 
@@ -302,31 +294,31 @@ __global__ void BlobDiff(const uint8_t *thresholded_image,
   uint32_t rep1;
   uint8_t v1;
 
-#define DO_CONN(dx, dy, point_offset)                                    \
-  {                                                                      \
-    QuadBoundaryPoint cluster_id;                                        \
-    const uint x1 = dx + threadIdx.x;                                    \
-    const uint y1 = dy + threadIdx.y;                                    \
-    const uint thread_linear_index1 = x1 + blockDim.x * y1;              \
-    v1 = temp_image_storage[thread_linear_index1];                       \
-    rep1 = temp_blob_storage[thread_linear_index1];                      \
-    if (v0 + v1 == 255) {                                                \
-      if (union_markers_size[rep1] >= 25) {                              \
-        if (rep0 < rep1) {                                               \
-          cluster_id.set_rep1(rep1);                                     \
-          cluster_id.set_rep0(rep0);                                     \
-        } else {                                                         \
-          cluster_id.set_rep1(rep0);                                     \
-          cluster_id.set_rep0(rep1);                                     \
-        }                                                                \
-        cluster_id.set_base_xy(x, y);                                    \
-        cluster_id.set_dxy(point_offset);                                \
-        cluster_id.set_black_to_white(v1 > v0);                          \
-      }                                                                  \
-    }                                                                    \
-    const size_t write_address =                                         \
-        (width - 2) * (height - 2) * point_offset + global_output_index; \
-    result[write_address] = cluster_id;                                  \
+#define DO_CONN(dx, dy, point_offset)                                          \
+  {                                                                            \
+    QuadBoundaryPoint cluster_id;                                              \
+    const uint x1 = dx + threadIdx.x;                                          \
+    const uint y1 = dy + threadIdx.y;                                          \
+    const uint thread_linear_index1 = x1 + blockDim.x * y1;                    \
+    v1 = temp_image_storage[thread_linear_index1];                             \
+    rep1 = temp_blob_storage[thread_linear_index1];                            \
+    if (v0 + v1 == 255) {                                                      \
+      if (union_markers_size[rep1] >= 25) {                                    \
+        if (rep0 < rep1) {                                                     \
+          cluster_id.set_rep1(rep1);                                           \
+          cluster_id.set_rep0(rep0);                                           \
+        } else {                                                               \
+          cluster_id.set_rep1(rep0);                                           \
+          cluster_id.set_rep0(rep1);                                           \
+        }                                                                      \
+        cluster_id.set_base_xy(x, y);                                          \
+        cluster_id.set_dxy(point_offset);                                      \
+        cluster_id.set_black_to_white(v1 > v0);                                \
+      }                                                                        \
+    }                                                                          \
+    const size_t write_address =                                               \
+        (width - 2) * (height - 2) * point_offset + global_output_index;       \
+    result[write_address] = cluster_id;                                        \
   }
 
   // We search the following 4 neighbors.
@@ -386,7 +378,7 @@ struct MaskBlobIndex {
 // Rewrites a QuadBoundaryPoint to an IndexPoint, adding the angle to the
 // center.
 class RewriteToIndexPoint {
- public:
+public:
   RewriteToIndexPoint(MinMaxExtents *extents_device, size_t num_extents)
       : blob_finder_(extents_device, num_extents) {}
 
@@ -402,7 +394,7 @@ class RewriteToIndexPoint {
 
 // Calculates Theta for a given IndexPoint
 class AddThetaToIndexPoint {
- public:
+public:
   AddThetaToIndexPoint(MinMaxExtents *extents_device, size_t num_extents)
       : blob_finder_(extents_device, num_extents) {}
   __host__ __device__ __forceinline__ IndexPoint operator()(IndexPoint a) {
@@ -415,7 +407,7 @@ class AddThetaToIndexPoint {
     return a;
   }
 
- private:
+private:
   BlobExtentsIndexFinder blob_finder_;
 };
 
@@ -467,13 +459,12 @@ struct ComputeDotProductTransform {
   ComputeDotProductTransform(MinMaxExtents *extents_device, size_t num_extents,
                              size_t tag_width, size_t min_cluster_pixels,
                              size_t max_cluster_pixels)
-      : index_finder_(extents_device, num_extents),
-        tag_width_(tag_width),
+      : index_finder_(extents_device, num_extents), tag_width_(tag_width),
         min_cluster_pixels_(std::max<size_t>(24u, min_cluster_pixels)),
         max_cluster_pixels_(max_cluster_pixels) {}
 
-  __host__ __device__ __forceinline__ float operator()(
-      cub::KeyValuePair<long, QuadBoundaryPoint> a) const {
+  __host__ __device__ __forceinline__ float
+  operator()(cub::KeyValuePair<long, QuadBoundaryPoint> a) const {
     const size_t y = a.value.y();
     const size_t x = a.value.x();
 
@@ -512,38 +503,36 @@ struct ComputeDotProductTransform {
 };
 
 class NonzeroBlobs {
- public:
+public:
   __host__ __device__
   NonzeroBlobs(const cub::KeyValuePair<long, MinMaxExtents> *extents_device)
       : extents_device_(extents_device) {}
 
-  __host__ __device__ __forceinline__ bool operator()(
-      const IndexPoint &a) const {
+  __host__ __device__ __forceinline__ bool
+  operator()(const IndexPoint &a) const {
     return extents_device_[a.blob_index()].value.count > 0;
   }
 
- private:
+private:
   const cub::KeyValuePair<long, MinMaxExtents> *extents_device_;
 };
 
 // Selects blobs which are big enough, not too big, and have the right color in
 // the middle.
 class SelectBlobs {
- public:
+public:
   SelectBlobs(const MinMaxExtents *extents_device, size_t tag_width,
               bool reversed_border, bool normal_border,
               size_t min_cluster_pixels, size_t max_cluster_pixels)
-      : extents_device_(extents_device),
-        tag_width_(tag_width),
-        reversed_border_(reversed_border),
-        normal_border_(normal_border),
+      : extents_device_(extents_device), tag_width_(tag_width),
+        reversed_border_(reversed_border), normal_border_(normal_border),
         min_cluster_pixels_(std::max<size_t>(24u, min_cluster_pixels)),
         max_cluster_pixels_(max_cluster_pixels) {}
 
   // Returns true if the blob passes the size and dot product checks and is
   // worth further consideration.
-  __host__ __device__ __forceinline__ bool operator()(
-      MinMaxExtents extents) const {
+  __host__ __device__ __forceinline__ bool
+  operator()(MinMaxExtents extents) const {
     if (extents.count < min_cluster_pixels_) {
       return false;
     }
@@ -569,8 +558,8 @@ class SelectBlobs {
     return true;
   }
 
-  __host__ __device__ __forceinline__ bool operator()(
-      const IndexPoint &a) const {
+  __host__ __device__ __forceinline__ bool
+  operator()(const IndexPoint &a) const {
     bool result = (*this)(extents_device_[a.blob_index()]);
 
     return result;
@@ -589,7 +578,7 @@ class SelectBlobs {
 // which is going to be filtered out.  Used in conjunction with SumPoints to
 // update zero sized blobs.
 struct TransformZeroFilteredBlobSizes {
- public:
+public:
   TransformZeroFilteredBlobSizes(size_t tag_width, bool reversed_border,
                                  bool normal_border, size_t min_cluster_pixels,
                                  size_t max_cluster_pixels)
@@ -603,7 +592,7 @@ struct TransformZeroFilteredBlobSizes {
     return pt;
   }
 
- private:
+private:
   SelectBlobs select_blobs_;
 };
 
@@ -731,7 +720,7 @@ struct MergePeakExtents {
   }
 };
 
-}  // namespace
+} // namespace
 
 void GpuDetector::Detect(const uint8_t *image) {
   // const aos::monotonic_clock::time_point start_time =
@@ -1176,4 +1165,4 @@ void GpuDetector::Detect(const uint8_t *image) {
   first_ = false;
 }
 
-}  // namespace frc971::apriltag
+} // namespace frc971::apriltag

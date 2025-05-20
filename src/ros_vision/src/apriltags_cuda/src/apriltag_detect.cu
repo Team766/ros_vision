@@ -89,7 +89,7 @@ void HostFitLine(LineFitMoments moments, double *lineparam01,
   *mse = eig_small;
 }
 
-}  // namespace
+} // namespace
 
 const std::vector<QuadCorners> &GpuDetector::FitQuads() const {
   return quad_corners_host_;
@@ -174,8 +174,8 @@ void GpuDetector::UpdateFitQuads() {
       // get area of triangle formed by points 0, 1, 2, 0
       float length[3], p;
       for (int i = 0; i < 3; i++) {
-        int idxa = i;            // 0, 1, 2,
-        int idxb = (i + 1) % 3;  // 1, 2, 0
+        int idxa = i;           // 0, 1, 2,
+        int idxb = (i + 1) % 3; // 1, 2, 0
         length[i] =
             hypotf((corners.corners[idxb][0] - corners.corners[idxa][0]),
                    (corners.corners[idxb][1] - corners.corners[idxa][1]));
@@ -405,10 +405,10 @@ bool GpuDetector::UnDistort(double *u, double *v,
 void RefineEdges(apriltag_detector_t *td, image_u8_t *im_orig,
                  struct quad *quad, CameraMatrix *camera_matrix,
                  DistCoeffs *distortion_coefficients) {
-  double lines[4][4];  // for each line, [Ex Ey nx ny]
+  double lines[4][4]; // for each line, [Ex Ey nx ny]
 
   for (int edge = 0; edge < 4; edge++) {
-    int a = edge, b = (edge + 1) & 3;  // indices of the end points.
+    int a = edge, b = (edge + 1) & 3; // indices of the end points.
 
     // compute the normal to the current line estimate
     float nx = quad->p[b][1] - quad->p[a][1];
@@ -425,7 +425,7 @@ void RefineEdges(apriltag_detector_t *td, image_u8_t *im_orig,
     // we will now fit a NEW line by sampling points near
     // our original line that have large gradients. On really big tags,
     // we're willing to sample more to get an even better estimate.
-    int nsamples = std::max<int>(16, mag / 8);  // XXX tunable
+    int nsamples = std::max<int>(16, mag / 8); // XXX tunable
 
     // stats for fitting a line...
     double Mx = 0, My = 0, Mxx = 0, Mxy = 0, Myy = 0, N = 0;
@@ -478,13 +478,13 @@ void RefineEdges(apriltag_detector_t *td, image_u8_t *im_orig,
         int g1 = im_orig->buf[y1 * im_orig->stride + x1];
         int g2 = im_orig->buf[y2 * im_orig->stride + x2];
 
-        if (g1 < g2)  // reject points whose gradient is "backwards". They can
-                      // only hurt us.
+        if (g1 < g2) // reject points whose gradient is "backwards". They can
+                     // only hurt us.
           continue;
 
         double weight =
             (g2 - g1) *
-            (g2 - g1);  // XXX tunable. What shape for weight=f(g2-g1)?
+            (g2 - g1); // XXX tunable. What shape for weight=f(g2-g1)?
 
         // compute weighted average of the gradient at this point.
         Mn += weight * n;
@@ -492,7 +492,8 @@ void RefineEdges(apriltag_detector_t *td, image_u8_t *im_orig,
       }
 
       // what was the average point along the line?
-      if (Mcount == 0) continue;
+      if (Mcount == 0)
+        continue;
 
       double n0 = Mn / Mcount;
 
@@ -661,4 +662,4 @@ void GpuDetector::DecodeTags() {
   zarray_sort(detections_, detection_compare_function);
 }
 
-}  // namespace frc971::apriltag
+} // namespace frc971::apriltag
