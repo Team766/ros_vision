@@ -45,6 +45,10 @@ public:
         std::bind(&CameraPublisher::timerCallback, this));
   }
 
+  ~CameraPublisher() {
+    image_pub_queue_->stop();
+  }
+
   void init() {
     // This can't be in the constructor because of the call to shared_from_this.
     it_ = std::make_shared<image_transport::ImageTransport>(shared_from_this());

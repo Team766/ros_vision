@@ -3,8 +3,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
-#include "vision_utils/publisher_queue.hpp"
-
 class ImageProcessor : public rclcpp::Node {
 public:
   ImageProcessor() : Node("image_processor") {

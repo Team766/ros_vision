@@ -1,10 +1,7 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.16)
 
 set(CMAKE_CUDA_COMPILER /usr/bin/clang++-17 CACHE STRING "CUDA compiler" FORCE)
 set(CMAKE_CXX_COMPILER /usr/bin/clang++-17 CACHE STRING "CXX compiler" FORCE)
-
-# Change this line if you want to compile for a different cuda arch.
-set(CMAKE_CUDA_ARCHITECTURES 52 CACHE STRING "CUDA architectures" FORCE)
 
 project(apriltags_cuda LANGUAGES CUDA CXX)
 
@@ -14,6 +11,8 @@ endif()
 
 add_compile_options(-Wno-deprecated-anon-enum-enum-conversion)
 add_compile_options(-Wno-c99-extensions)
+add_compile_options(-Wno-unused-parameter)
+
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -32,8 +31,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(glog REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
+find_package(vision_utils REQUIRED)
+find_package(vision_deps REQUIRED)
+find_package(glog REQUIRED)
+
+#message(STATUS "prefix is ${CMAKE_INSTALL_PREFIX}")
+set(VISION_DEPS_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/../vision_deps)
+message(STATUS "VISION_DEPS_INSTALL_DIR is ${VISION_DEPS_INSTALL_DIR}")
+
 
 # Use the propagated install directory from parent (ros_vision)
 include_directories(
@@ -46,7 +54,6 @@ include_directories(
   ${VISION_DEPS_INSTALL_DIR}/json-install/include/
   ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag
   ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag/common
-  ${CMAKE_INSTALL_PREFIX}/include
 )
 
 set(CUDA_LIB_SOURCES 
@@ -68,10 +75,10 @@ set(CUDA_LIB_SOURCES
 # Add a library with the above source files
 add_library(apriltag_cuda ${CUDA_LIB_SOURCES})
 
-add_dependencies(apriltag_cuda vision_deps_external vision_utils)
+#add_dependencies(apriltag_cuda vision_deps_external vision_utils)
 
 add_executable(apriltags_cuda_node src/apriltags_cuda_node.cu)
-ament_target_dependencies(apriltags_cuda_node rclcpp sensor_msgs cv_bridge image_transport)
+ament_target_dependencies(apriltags_cuda_node rclcpp sensor_msgs cv_bridge image_transport vision_deps vision_utils)
 target_link_libraries(apriltags_cuda_node
     apriltag_cuda
     ${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib/libapriltag.so

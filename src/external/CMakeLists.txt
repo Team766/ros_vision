@@ -2,13 +2,15 @@ include(ExternalProject)
 include(ProcessorCount)
 
 cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
-
 project(vision_deps LANGUAGES CUDA CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(VISION_DEPS_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE INTERNAL "")
+
+find_package(ament_cmake REQUIRED)
 find_package(CUDA REQUIRED)
 find_package(glog REQUIRED)
 find_package(GTest REQUIRED)
@@ -101,11 +103,5 @@ add_dependencies(json CCCL)
 add_dependencies(seasocks json)
 add_dependencies(apriltag seasocks)
 
-# clang-format target (optional)
-add_custom_target(format_all
-    COMMAND clang-format -i -style=Google
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cu
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
-    COMMENT "Running clang-format"
-)
+ament_package()
+
