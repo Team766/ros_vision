@@ -15,18 +15,6 @@ install(
   DESTINATION include
 )
 
-# add_custom_target(copy_headers ALL
-#     COMMAND bash -c "mkdir -p ${CMAKE_INSTALL_PREFIX}/include && cp -r ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_INSTALL_PREFIX}/include"
-#     COMMENT "Copying headers to build directory"
-# )
-
-# install(CODE "
-#     execute_process(COMMAND bash -c \"
-#         mkdir -p ${CMAKE_INSTALL_PREFIX}/include && \
-#         cp -r ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${CMAKE_INSTALL_PREFIX}/include/
-#     \")
-# ")
-
 ament_export_include_directories(include)
 
 ament_package()

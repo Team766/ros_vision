@@ -32,10 +32,10 @@ Install the ros2 Foxglove bridge:
 - Clone the repo: `git clone git@github.com:Team766/ros_vision.git`
 - `cd ros_vision`
 - `source /opt/ros/humble/setup.bash`
-- Run the install deps script: `sudo src/ros_vision/install_deps.sh`
+- Run the install deps script: `sudo ./install_deps.sh`
 - inspect your nvidia gpu compute capability with the following command `nvidia-smi --query-gpu compute_cap --format=csv`  
-- edit the file `src/ros_vision/src/apriltags_cuda/CMakeLists.txt`, ensure the line that says `set(CMAKE_CUDA_ARCHITECTURES 52 CACHE STRING "CUDA architectures" FORCE)` matches the compute capability of your machine.  Note that nvidia-smi reports the capability as `X.Y` but you need to put in `XY` in the file.  Save the file.
-
+- edit the file `./build_env_vars.sh`, ensure the line that says `export CMAKE_CUDA_ARCHITECTURES 52` matches the compute capability of your machine.  Note that nvidia-smi reports the capability as `X.Y` but you need to put in `XY` in the file.  Save the file.
+- source the file `source ./build_env_vars.sh`.  Now your environment is ready and you can build the code.
 - Now you are ready to build.  Note that the build will take quite a while as it pulls down dependencies like OpenCV and WpiLIB.
 
 ### Orin Building Instructions
