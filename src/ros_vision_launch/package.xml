@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>ros_vision_launch</name>
+  <version>0.0.1</version>
+  <description>Launch files for vision stack</description>
+  <maintainer email="your@email.com">Your Name</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+
+</package>
