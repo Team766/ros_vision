@@ -1,16 +1,30 @@
+import json
 import os
 import re
 import sys
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-
+from ament_index_python.packages import get_package_share_directory
 
 BY_ID_PATH = "/dev/v4l/by-id/"
+"""Path to the directory containing persistent V4L device symlinks by hardware ID."""
 
 
 def scan_for_cameras():
+    """
+    Scan for USB cameras by parsing the /dev/v4l/by-id directory.
 
+    Returns:
+        dict: Mapping of camera serial numbers (str) to their corresponding video device indices (int).
+
+    Raises:
+        Exception: If the directory does not exist, no camera devices are found, or parsing fails.
+
+    Example:
+        >>> scan_for_cameras()
+        {'766': 0, '1234': 1}
+    """
     if not os.path.exists(BY_ID_PATH):
         raise Exception(f"Error: {BY_ID_PATH} does not exist.")
 
@@ -26,8 +40,7 @@ def scan_for_cameras():
         # Extract serial number and index using regex
         match = re.search(r"Camera_(\d+).*index(\d+)", entry)
         if not match:
-            print(f"Error: Could not parse serial/index from: {entry}", file=sys.stderr)
-            sys.exit(1)
+            raise Exception(f"Error: Could not parse serial/index from: {entry}")
 
         serial = match.group(1)
         index = match.group(2)
@@ -57,15 +70,76 @@ def scan_for_cameras():
     return cameras_by_serial_id
 
 
-def generate_launch_description():
+def check_format(config_data):
+    """
+    Placeholder function to validate the format of the configuration data.
 
+    Args:
+        config_data (dict): The configuration data loaded from JSON.
+
+    Returns:
+        None
+
+    Raises:
+        NotImplementedError: If validation is not yet implemented.
+    """
+    # TODO: implement this
+    pass
+
+
+def get_config_data(cameras_by_serial_id):
+    """
+    Load and validate camera configuration data from the ROS package.
+
+    Args:
+        cameras_by_serial_id (dict): Mapping of camera serials (str) to video indices (int).
+
+    Returns:
+        dict: Mapping of camera serial numbers (str) to their mounted positions from config.
+
+    Raises:
+        Exception: If the configuration file is not found or required keys are missing.
+    """
+    data_path = os.path.join(get_package_share_directory('vision_config_data'), 'data', 'system_config.json')
+    if not os.path.exists(data_path):
+        raise Exception(f"Error: unable to find system_config.json at {data_path}")
+
+    with open(data_path, 'r') as f:
+        config_data = json.load(f)
+
+    check_format(config_data)
+
+    camera_mounted_positions = config_data["camera_mounted_positions"]
+    result = {}
+    for k, v in cameras_by_serial_id.items():
+        result[k] = camera_mounted_positions[k]
+
+    return result
+
+
+def generate_launch_description():
+    """
+    Generate a ROS2 LaunchDescription for all detected cameras.
+
+    Scans for cameras, loads configuration, and sets up the usb_camera, apriltags, and foxglove_bridge nodes.
+
+    Returns:
+        LaunchDescription: The ROS2 launch description object with configured nodes.
+
+    Raises:
+        Exception: If camera detection or configuration loading fails.
+    """
     # First we scan for cameras.
     cameras_by_serial_id = scan_for_cameras()
     print(f"Found cameras: {cameras_by_serial_id}")
 
+    cameras_by_location = get_config_data(cameras_by_serial_id)
+    print(f"Found locations: {cameras_by_location}")
+
     # For each camera found, set up the image processing pipeline.
     nodes = []
     for serial_id, camera_idx in cameras_by_serial_id.items():
+        cam_location = cameras_by_location[serial_id]
         nodes.append(
             Node(
                 package="usb_camera",
@@ -74,7 +148,7 @@ def generate_launch_description():
                 parameters=[
                     {
                         "camera_idx": camera_idx,
-                        "topic_name": f"cameras/camera_{serial_id}/image_raw",
+                        "topic_name": f"cameras/{cam_location}/image_raw",
                     },
                 ],
             )
@@ -86,8 +160,8 @@ def generate_launch_description():
                 name=f"apriltags",
                 parameters=[
                     {
-                        "topic_name": f"cameras/camera_{serial_id}/image_raw",
-                        "publish_to_topic": f"apriltags/camera_{serial_id}/images",
+                        "topic_name": f"cameras/{cam_location}/image_raw",
+                        "publish_to_topic": f"apriltags/{cam_location}/images",
                     },
                 ],
             )
