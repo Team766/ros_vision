@@ -148,6 +148,7 @@ def generate_launch_description():
                 parameters=[
                     {
                         "camera_idx": camera_idx,
+                        "camera_serial": serial_id,
                         "topic_name": f"cameras/{cam_location}/image_raw",
                     },
                 ],
@@ -161,6 +162,7 @@ def generate_launch_description():
                 parameters=[
                     {
                         "topic_name": f"cameras/{cam_location}/image_raw",
+                        "camera_serial": serial_id,
                         "publish_to_topic": f"apriltags/{cam_location}/images",
                     },
                 ],
