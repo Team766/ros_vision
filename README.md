@@ -34,22 +34,16 @@ Install the ros2 Foxglove bridge:
 - `source /opt/ros/humble/setup.bash`
 - Run the install deps script: `sudo ./install_deps.sh`
 - inspect your nvidia gpu compute capability with the following command `nvidia-smi --query-gpu compute_cap --format=csv`  
-- edit the file `./build_env_vars.sh`, ensure the line that says `export CMAKE_CUDA_ARCHITECTURES 52` matches the compute capability of your machine.  Note that nvidia-smi reports the capability as `X.Y` but you need to put in `XY` in the file.  Save the file.
+- edit the file `./build_env_vars.sh`, ensure the line that says `export CMAKE_CUDA_ARCHITECTURES=52` matches the compute capability of your machine.  Note that nvidia-smi reports the capability as `X.Y` but you need to put in `XY` in the file.  Save the file.
 - source the file `source ./build_env_vars.sh`.  Now your environment is ready and you can build the code.
 - Now you are ready to build.  Note that the build will take quite a while as it pulls down dependencies like OpenCV and WpiLIB.
 
-### Orin Building Instructions
+### Building Instructions
 
-The Orin is a bit wimpy so we need to make sure it only uses 2 processors during the build, otherwise it will fail.
+Run the following command to build the code the first time.  This will pull down the dependencies and build them in the right order.
 ```
-colcon build --cmake-args -DNUM_PROCESSORS=2--event-handlers console_direct+
+./bootstrap.sh
 ```
-
-### x86_64 Build Instructions
-```
-colcon build --event-handlers console_direct+
-```
-
 ## Run The Pipeline
 
 ### Start The System Using The Launcher
@@ -59,7 +53,7 @@ colcon build --event-handlers console_direct+
 
 ```
 source install/setup.bash
-ros2 launch ros_vision launch_vision.py
+ros2 launch ros_vision_launch launch_vision.py
 ```
 
 This will launches the following nodes:
