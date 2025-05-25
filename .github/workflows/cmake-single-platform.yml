@@ -75,6 +75,13 @@ jobs:
         docker run --rm -v ${{ github.workspace }}:/workspace ros_vision:latest \
           bash -c "cd /workspace && \
           git config --system --add safe.directory /workspace/build/ && \
+          git config --system --add safe.directory /workspace/build/vision_deps && \
+          git config --system --add safe.directory /workspace/build/vision_deps/apriltag && \
+          git config --system --add safe.directory /workspace/build/vision_deps/OpenCV && \
+          git config --system --add safe.directory /workspace/build/vision_deps/wpilib && \
+          git config --system --add safe.directory /workspace/build/vision_deps/json && \
+          git config --system --add safe.directory /workspace/build/vision_deps/cccl && \
+          it config --system --add safe.directory /workspace/build/vision_deps/seasocks && \
           /workspace/bootstrap.sh"
 
     - name: Run tests
