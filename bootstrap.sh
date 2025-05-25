@@ -25,10 +25,13 @@ if [ ! -e "install/vision_deps/opencv-install/share/opencv4/" ] ; then
     colcon build --packages-select vision_deps
 fi
 
+source install/setup.bash
+export OpenCV_DIR=$PWD/install/vision_deps/opencv-install/lib/cmake/opencv4
+
 # Now build cv_bridge against our version of opencv.
 if [ ! -e "install/cv_bridge/lib/libcv_bridge.so" ] ; then
     echo "Building cv_bridge"
-    colcon build --packages-select cv_bridge --cmake-args -DOpenCV_DIR=./install/vision_deps/opencv-install/lib/cmake/opencv4
+    colcon build --packages-select cv_bridge
 fi
 
 # Now build the image transport packages

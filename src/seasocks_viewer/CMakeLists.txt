@@ -10,7 +10,7 @@ find_package(Threads REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(vision_deps REQUIRED)
 
-set(VISION_DEPS_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/../vision_deps)
+set(VISION_DEPS_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../install/vision_deps)
 message(STATUS "VISION_DEPS_INSTALL_DIR is ${VISION_DEPS_INSTALL_DIR}")
 
 include_directories(${VISION_DEPS_INSTALL_DIR}/seasocks-install/include)

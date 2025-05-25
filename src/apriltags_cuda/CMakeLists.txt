@@ -39,7 +39,7 @@ find_package(vision_deps REQUIRED)
 find_package(glog REQUIRED)
 
 #message(STATUS "prefix is ${CMAKE_INSTALL_PREFIX}")
-set(VISION_DEPS_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/../vision_deps)
+set(VISION_DEPS_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../install/vision_deps)
 message(STATUS "VISION_DEPS_INSTALL_DIR is ${VISION_DEPS_INSTALL_DIR}")
 
 
