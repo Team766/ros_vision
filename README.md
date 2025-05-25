@@ -89,7 +89,7 @@ Once the connection is opened you should see the two images displayed, one from 
 
 - When the docker build completes, run the docker in interactive mode with the following command: 
 ```bash
-docker run -it -v/tmp:/tmp --runtime=nvidia --gpus all ros_vision:latest /bin/bash
+docker run -it -v/tmp:/tmp --runtime=nvidia --gpus all -p 8765:8765 -v /dev/v4l/:/dev/v4l  --device /dev/video0 ros_vision:latest /bin/bash
 ```
 This command maps the /tmp drive on the host to the /tmp drive in the docker container.
 
