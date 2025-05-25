@@ -15,6 +15,9 @@ public:
     this->declare_parameter<int>("camera_idx", 0);
     int camera_idx = this->get_parameter("camera_idx").as_int();
 
+    this->declare_parameter<std::string>("camera_serial", "N/A");
+    camera_serial_ = this->get_parameter("camera_serial").as_string();
+
     this->declare_parameter<std::string>("topic_name", "camera/image_raw");
     topic_name_ = this->get_parameter("topic_name").as_string();
 
@@ -85,6 +88,7 @@ private:
   image_transport::Publisher publisher_;
 
   std::string topic_name_;
+  std::string camera_serial_;
 };
 
 int main(int argc, char *argv[]) {
