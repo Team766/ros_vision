@@ -11,10 +11,6 @@ This repo contains a ROS2 based version of the vision system for Team766.  As of
 - OS: ubuntu 22.04
 - a functioning Nvidia GPU - AMD not supported
 
-## Install ROS
-
-To install ROS2 follow these [instructions](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html)
-
 ## Install Foxglove
 
 Foxglove studio is a powerful tool that lets you inspect ros image messages, topics, and outputs.  I recommend installing it.
@@ -76,6 +72,41 @@ Once the connection is opened you should see the two images displayed, one from 
 
 ![Foxglove studio showing the two camera feeds](res/foxglovestudio.png)
 
+
+## Docker Instructions
+
+### Building The Code in a Docker Container
+
+- [Install docker on ubuntu](https://docs.docker.com/engine/install/ubuntu/)
+
+- Follow the instructions for [installing the nvidia container toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+
+- Edit the nvidia container config file `sudo vim /etc/nvidia-container-runtime/config.toml` and ensure that `no-cgroups = false`, and save the file.
+
+- Restart the docker daemon: `sudo systemctl restart docker`
+
+- Run the docker build command in the current directory as follows: `docker build -t ros_vision:latest .`
+
+- When the docker build completes, run the docker in interactive mode with the following command: 
+```bash
+docker run -it -v/tmp:/tmp --runtime=nvidia --gpus all -p 8765:8765 -v /dev/v4l/:/dev/v4l  --device /dev/video0 ros_vision:latest /bin/bash
+```
+This command maps the /tmp drive on the host to the /tmp drive in the docker container.
+
+- At the container cmd line:
+
+```
+cd /tmp
+mkdir code
+cd code
+git clone git@github.com:Team766/ros_vision.git
+cd ros_vision
+```
+
+- inspect your nvidia gpu compute capability with the following command `nvidia-smi --query-gpu compute_cap --format=csv`  
+- edit the file `./build_env_vars.sh`, ensure the line that says `export CMAKE_CUDA_ARCHITECTURES=52` matches the compute capability of your machine.  Note that nvidia-smi reports the capability as `X.Y` but you need to put in `XY` in the file.  Save the file.
+
+Now run `./boostrap.sh` to build the code.
 
 ## Instructions To Start The Nodes Manually
 

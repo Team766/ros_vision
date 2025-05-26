@@ -34,6 +34,26 @@ sudo apt install -y wget build-essential cmake python3-dev python3-numpy libprot
 sudo apt install -y libgoogle-glog-dev libgtest-dev libssh-dev libxrandr-dev libxinerama-dev libstdc++-12-dev
 sudo apt install -y golang
 
+# Install ROS sources if needed
+if ! grep -q "packages.ros.org/ros2/ubuntu" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
+    sudo apt update
+    sudo apt install -y curl gnupg2 lsb-release
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key | sudo apt-key add -
+    echo "deb http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | \
+        sudo tee /etc/apt/sources.list.d/ros2-latest.list
+    sudo apt update
+fi
+# ----------------------------------------------------------------------
+
+# Install ROS packages
+sudo apt install -y ros-humble-ros-base ros-dev-tools
+sudo apt-get install -y libboost-all-dev python3-dev python3-numpy
+sudo apt-get install -y libboost-python-dev libboost-system-dev libboost-thread-dev
+sudo apt-get install -y ros-humble-image-transport
+sudo apt-get install -y libtheora-dev libogg-dev pkg-config
+sudo apt-get install -y ros-humble-foxglove-bridge
+
+
 # Check if clang-17 is installed.
 if ! dpkg -l | grep clang-17; then
 	install_llvm
