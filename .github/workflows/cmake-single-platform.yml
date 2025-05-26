@@ -82,9 +82,11 @@ jobs:
           git config --system --add safe.directory /workspace/build/vision_deps/wpilib && \
           git config --global --add safe.directory /workspace/build/vision_deps/wpilib/src/wpilib && \
           git config --global --add safe.directory /workspace/build/vision_deps/wpilib/src/wpilib-build/_deps/googletest-src && \
-          git config --system --add safe.directory /workspace/build/vision_deps/json && \
-          git config --system --add safe.directory /workspace/build/vision_deps/cccl && \
-          git config --system --add safe.directory /workspace/build/vision_deps/seasocks && \
+          git config --system --add safe.directory /workspace/build/vision_deps/wpilib/src/wpilib-build/_deps/apriltaglib-src && \
+          git config --system --add safe.directory /workspace/build/vision_deps/seasocks/src/seasocks && \
+          git config --system --add safe.directory /workspace/build/vision_deps/cccl/src/CCCL && \
+          git config --system --add safe.directory /workspace/build/vision_deps/json/src/json && \
+          git config --system --add safe.directory /workspace/build/vision_deps/apriltag/src/apriltag && \
           /workspace/bootstrap.sh"
 
     - name: Run tests
