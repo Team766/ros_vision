@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>vision_deps</name>
+  <version>0.1.0</version>
+  <description>External dependencies for vision system</description>
+  <maintainer email="your@email.com">Your Name</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>glog</exec_depend>
+  <exec_depend>GTest</exec_depend>
+  <exec_depend>ZLIB</exec_depend>
+  <exec_depend>OpenCV</exec_depend>
+  <!-- add other system/external dependencies as needed -->
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

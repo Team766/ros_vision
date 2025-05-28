@@ -11,10 +11,6 @@ This repo contains a ROS2 based version of the vision system for Team766.  As of
 - OS: ubuntu 22.04
 - a functioning Nvidia GPU - AMD not supported
 
-## Install ROS
-
-To install ROS2 follow these [instructions](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html)
-
 ## Install Foxglove
 
 Foxglove studio is a powerful tool that lets you inspect ros image messages, topics, and outputs.  I recommend installing it.
@@ -32,25 +28,87 @@ Install the ros2 Foxglove bridge:
 - Clone the repo: `git clone git@github.com:Team766/ros_vision.git`
 - `cd ros_vision`
 - `source /opt/ros/humble/setup.bash`
-- Run the install deps script: `sudo src/ros_vision/install_deps.sh`
+- Run the install deps script: `sudo ./install_deps.sh`
 - inspect your nvidia gpu compute capability with the following command `nvidia-smi --query-gpu compute_cap --format=csv`  
-- edit the file `src/ros_vision/src/apriltags_cuda/CMakeLists.txt`, ensure the line that says `set(CMAKE_CUDA_ARCHITECTURES 52 CACHE STRING "CUDA architectures" FORCE)` matches the compute capability of your machine.  Note that nvidia-smi reports the capability as `X.Y` but you need to put in `XY` in the file.  Save the file.
-
+- edit the file `./build_env_vars.sh`, ensure the line that says `export CMAKE_CUDA_ARCHITECTURES=52` matches the compute capability of your machine.  Note that nvidia-smi reports the capability as `X.Y` but you need to put in `XY` in the file.  Save the file.
+- source the file `source ./build_env_vars.sh`.  Now your environment is ready and you can build the code.
 - Now you are ready to build.  Note that the build will take quite a while as it pulls down dependencies like OpenCV and WpiLIB.
 
-### Orin Building Instructions
+### Building Instructions
 
-The Orin is a bit wimpy so we need to make sure it only uses 2 processors during the build, otherwise it will fail.
+Run the following command to build the code the first time.  This will pull down the dependencies and build them in the right order.
 ```
-colcon build --cmake-args -DNUM_PROCESSORS=2--event-handlers console_direct+
+./bootstrap.sh
 ```
-
-### x86_64 Build Instructions
-```
-colcon build --event-handlers console_direct+
-```
-
 ## Run The Pipeline
+
+### Start The System Using The Launcher
+
+- plug in a USB camera.  Arducam works best (at least we've tested it!)
+- in a terminal type:
+
+```
+source install/setup.bash
+ros2 launch ros_vision_launch launch_vision.py
+```
+
+This will launches the following nodes:
+- the camera will attempt to be autodetected.  This will succeed if the string Camera is found in the camera entry in the /dev/v4l/by-id directory.  
+- usb_camera_node which collects frames from the camera and publishes them to a topic
+- apriltags_cuda node which takes frames from the topic above and runs the apriltag detection alg on the GPU.  It prints out detection data to the screen and also publishes detection images to a second topic.
+- a foxglove bridge node, which makes it easy to view the messages in FoxGlove.
+
+If everything is working properly you should see some text scrolling by on the screen corresponding to apriltag detections.
+
+### Startup Foxglove Studio
+
+On the host machine startup Foxglove Studio (Activities -> Foxglove).  If it is your first time installing it you need to sign up for an account.  It's free so go ahead and do that.  If this bothers you then you don't have to use foxglove, you could use the Seasocks viewer (see below).
+
+Once foxglove is running, click Open Connection and select the local webserver as shown below.
+
+![Opening a connecction in foxglove](res/openconnection.png)
+
+Once the connection is opened you should see the two images displayed, one from the usb camera and one from the aprtiltag detection.
+
+![Foxglove studio showing the two camera feeds](res/foxglovestudio.png)
+
+
+## Docker Instructions
+
+### Building The Code in a Docker Container
+
+- [Install docker on ubuntu](https://docs.docker.com/engine/install/ubuntu/)
+
+- Follow the instructions for [installing the nvidia container toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+
+- Edit the nvidia container config file `sudo vim /etc/nvidia-container-runtime/config.toml` and ensure that `no-cgroups = false`, and save the file.
+
+- Restart the docker daemon: `sudo systemctl restart docker`
+
+- Run the docker build command in the current directory as follows: `docker build -t ros_vision:latest .`
+
+- When the docker build completes, run the docker in interactive mode with the following command: 
+```bash
+docker run -it -v/tmp:/tmp --runtime=nvidia --gpus all -p 8765:8765 -v /dev/v4l/:/dev/v4l  --device /dev/video0 ros_vision:latest /bin/bash
+```
+This command maps the /tmp drive on the host to the /tmp drive in the docker container.
+
+- At the container cmd line:
+
+```
+cd /tmp
+mkdir code
+cd code
+git clone git@github.com:Team766/ros_vision.git
+cd ros_vision
+```
+
+- inspect your nvidia gpu compute capability with the following command `nvidia-smi --query-gpu compute_cap --format=csv`  
+- edit the file `./build_env_vars.sh`, ensure the line that says `export CMAKE_CUDA_ARCHITECTURES=52` matches the compute capability of your machine.  Note that nvidia-smi reports the capability as `X.Y` but you need to put in `XY` in the file.  Save the file.
+
+Now run `./boostrap.sh` to build the code.
+
+## Instructions To Start The Nodes Manually
 
 ### Start The USB Camera Node
 
