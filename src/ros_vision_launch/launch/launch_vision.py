@@ -13,50 +13,37 @@ BY_ID_PATH = "/dev/v4l/by-id/"
 
 def scan_for_cameras():
     """
-    Scan for USB cameras by parsing the /dev/v4l/by-id directory.
-
-    Returns:
-        dict: Mapping of camera serial numbers (str) to their corresponding video device indices (int).
-
-    Raises:
-        Exception: If the directory does not exist, no camera devices are found, or parsing fails.
-
-    Example:
-        >>> scan_for_cameras()
-        {'766': 0, '1234': 1}
+    For each camera, find the /dev/video* device associated with its -index0 symlink,
+    and map the serial number to the actual video index (as integer).
     """
     if not os.path.exists(BY_ID_PATH):
         raise Exception(f"Error: {BY_ID_PATH} does not exist.")
 
-    found = False
-    results = []
-
+    cameras_by_serial_id = {}
     for entry in os.listdir(BY_ID_PATH):
-        # Example: usb-Arducam_Technology_Co.__Ltd._Arducam_OV9281_USB_Camera_766-video-index0
-        if "Camera" not in entry:
-            continue  # Not a camera device
-        found = True
+        # Only consider symlinks ending in -index0 (main video stream)
+        if "Camera" not in entry or not entry.endswith("index0"):
+            continue
 
-        # Extract serial number and index using regex
-        match = re.search(r"Camera_(\d+).*index(\d+)", entry)
+        # Extract the serial number from the symlink name
+        match = re.search(r"Camera_(\d+)", entry)
         if not match:
-            raise Exception(f"Error: Could not parse serial/index from: {entry}")
+            continue  # Or raise error, up to you
 
         serial = match.group(1)
-        index = match.group(2)
 
-        # Follow symlink to get actual /dev/video* path
+        # Resolve symlink to get the /dev/video* device path
         device_path = os.path.realpath(os.path.join(BY_ID_PATH, entry))
 
-        results.append(
-            {
-                "serial": serial,
-                "index": index,
-                "video_device": device_path,
-            }
-        )
+        # Robustly extract the number from /dev/videoN
+        vid_match = re.search(r"/dev/video(\d+)$", device_path)
+        if not vid_match:
+            continue  # Or raise error, up to you
 
-    if not found:
+        video_index = int(vid_match.group(1))
+        cameras_by_serial_id[serial] = video_index
+
+    if not cameras_by_serial_id:
         msg = "\n\nError: No camera devices found in by-id entries!\n\n"
         msg += "This utility depends on finding the string 'Camera' somewhere in the filename.\n"
         msg += f"We found these devices: {list(os.listdir(BY_ID_PATH))}\n\n"
@@ -64,9 +51,6 @@ def scan_for_cameras():
         msg += "With an arducam, try resetting the serial number so that the Device Name is 'Camera': https://docs.arducam.com/UVC-Camera/Serial-Number-Tool-Guide/"
         raise Exception(msg)
 
-    cameras_by_serial_id = {
-        item["serial"]: int(item["video_device"][-1]) for item in results
-    }
     return cameras_by_serial_id
 
 
@@ -100,11 +84,13 @@ def get_config_data(cameras_by_serial_id):
     Raises:
         Exception: If the configuration file is not found or required keys are missing.
     """
-    data_path = os.path.join(get_package_share_directory('vision_config_data'), 'data', 'system_config.json')
+    data_path = os.path.join(
+        get_package_share_directory("vision_config_data"), "data", "system_config.json"
+    )
     if not os.path.exists(data_path):
         raise Exception(f"Error: unable to find system_config.json at {data_path}")
 
-    with open(data_path, 'r') as f:
+    with open(data_path, "r") as f:
         config_data = json.load(f)
 
     check_format(config_data)
