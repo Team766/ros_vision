@@ -40,7 +40,7 @@ Run the following command to build the code the first time.  This will pull down
 ```
 ./bootstrap.sh
 ```
-## Run The Pipeline
+## Run The Vision Pipeline
 
 ### Start The System Using The Launcher
 
@@ -66,7 +66,7 @@ On the host machine startup Foxglove Studio (Activities -> Foxglove).  If it is 
 
 Once foxglove is running, click Open Connection and select the local webserver as shown below.
 
-![Opening a connecction in foxglove](res/openconnection.png)
+![Opening a connection in foxglove](res/openconnection.png)
 
 Once the connection is opened you should see the two images displayed, one from the usb camera and one from the aprtiltag detection.
 
@@ -107,6 +107,38 @@ cd ros_vision
 - edit the file `./build_env_vars.sh`, ensure the line that says `export CMAKE_CUDA_ARCHITECTURES=52` matches the compute capability of your machine.  Note that nvidia-smi reports the capability as `X.Y` but you need to put in `XY` in the file.  Save the file.
 
 Now run `./boostrap.sh` to build the code.
+
+## Run The Intrinsic Camera Calibration Pipeline
+
+The system has the ability to perform intrinsic camera calibration.  The calibration needs a charuco board printed as DICT_4x4, e.g. like one generated from here: [Charuco Pattern Generator](https://calib.io/pages/camera-calibration-pattern-generator)
+
+### Start The Calibration Pipeline Using The Launcher
+
+- plug in a USB camera.  Arducam works best (at least we've tested it!)
+- in a terminal type:
+
+```
+source install/setup.bash
+ros2 launch ros_vision_launch calibrate_camera.launch.py serial:=766 max_frames:=30 board_rows:=8 board_cols:=11 square_length:=0.015 marker_length:=0.011
+```
+
+The arguments are:
+- serial : the serial number of the camera you want to calibrate
+- max_frames: the number of frames to collect marker points on before calibrating
+- board_rows: the number of rows the charuco board has
+- board_cols: the number of columns the charuco board has
+- square_length: the physical length of the squares on the charuco board, in units of meters
+- marker_length: the physical length of the markers on the charuco board, in units of meters
+
+You don't have to specify all the arguments, but you must specify the serial argument.
+
+If everything is working properly what will happen is the usb_camera node will be started and will collect frames at a lower frame rate (currently 4 frames per second, specified in src/ros_vision_launch/launch/calibrate_camera.launch.py).  The camera_calibrator node will be started and subscribe to the raw image topic for the camera.  When a new image is detected the charuco board will attempt to be detected.  The detected markers will be drawn on the image and the image will be published to a /calibration topic.  You can view these topics in foxglove.
+
+After max_frames of detected markers are collected, the OpenCV calibration utility will be run and the calibration parameters will be saved to a file.  You will need to install the file into the source tree properly (typically src/vision_config_data/data/calibration) and rerun the build for the new calibration file to take effect.
+
+![Detected Markers shown in foxglove](res/intrinsic_calibration.png)
+
+
 
 ## Instructions To Start The Nodes Manually
 

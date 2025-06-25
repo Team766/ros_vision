@@ -15,6 +15,9 @@ public:
     this->declare_parameter<int>("camera_idx", 0);
     int camera_idx = this->get_parameter("camera_idx").as_int();
 
+    this->declare_parameter<int>("approx_fps", 60);
+    fps_ = this->get_parameter("approx_fps").as_int();
+
     this->declare_parameter<std::string>("camera_serial", "N/A");
     camera_serial_ = this->get_parameter("camera_serial").as_string();
 
@@ -42,9 +45,11 @@ public:
                 static_cast<int>(cap_.get(cv::CAP_PROP_FPS)));
     RCLCPP_INFO(this->get_logger(), "Pubishing on Topic: '%s'",
                 topic_name_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Publishing every (ms) '%d'",
+                int(1000.0 / fps_));
 
     timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(16), // ~60fps
+        std::chrono::milliseconds(int(1000.0 / fps_)),
         std::bind(&CameraPublisher::timerCallback, this));
   }
 
@@ -89,6 +94,7 @@ private:
 
   std::string topic_name_;
   std::string camera_serial_;
+  int fps_;
 };
 
 int main(int argc, char *argv[]) {

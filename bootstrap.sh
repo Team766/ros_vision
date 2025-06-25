@@ -27,6 +27,7 @@ fi
 
 source install/setup.bash
 export OpenCV_DIR=$PWD/install/vision_deps/opencv-install/lib/cmake/opencv4
+export PYTHONPATH=$PWD/install/vision_deps/opencv-install/lib/python3.10/dist-packages:$PYTHONPATH
 
 # Now build cv_bridge against our version of opencv.
 if [ ! -e "install/cv_bridge/lib/libcv_bridge.so" ] ; then
