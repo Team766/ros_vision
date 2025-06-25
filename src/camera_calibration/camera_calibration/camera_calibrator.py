@@ -17,8 +17,8 @@ class CameraCalibrationNode(Node):
 
         self.declare_parameter('board_cols', 11)
         self.declare_parameter('board_rows', 8)
-        self.declare_parameter('square_length', 0.0238)
-        self.declare_parameter('marker_length', 0.017)
+        self.declare_parameter('square_length', 0.015)
+        self.declare_parameter('marker_length', 0.011)
         self.declare_parameter('subscriber_topic', '/camera/image_raw')
         self.declare_parameter('publisher_topic', '/calibration/image_annotated')
         self.declare_parameter('camera_serial', 'N/A')
