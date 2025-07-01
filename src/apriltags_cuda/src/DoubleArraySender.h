@@ -9,13 +9,17 @@
 #include "networktables/NetworkTableInstance.h"
 
 class DoubleArraySender {
-private:
+ private:
   nt::NetworkTableInstance inst_;
   nt::DoubleArrayPublisher publisher_;
 
-public:
+  std::string table_name_;
+  std::string table_address_;
+
+ public:
   // Constructor declaration
-  DoubleArraySender(std::string key);
+  DoubleArraySender(const std::string& key, const std::string& table_address,
+                    const std::string& table_name);
 
   // Method declarations
   void sendValue(std::vector<double> value);

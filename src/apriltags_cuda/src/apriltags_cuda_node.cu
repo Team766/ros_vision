@@ -1,20 +1,22 @@
 #include <cv_bridge/cv_bridge.h>
+
+#include <filesystem>
+#include <fstream>
 #include <image_transport/image_transport.hpp>
+#include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
-#include <string>
 #include <sstream>
-#include <fstream>
-#include <filesystem>
-#include <nlohmann/json.hpp>
+#include <string>
+#include <vector>
 
+
+#include "DoubleArraySender.h"
+#include "ament_index_cpp/get_package_share_directory.hpp"
 #include "apriltag_gpu.h"
 #include "apriltag_utils.h"
-
 #include "vision_utils/publisher_queue.hpp"
-
-#include "ament_index_cpp/get_package_share_directory.hpp"
 
 extern "C" {
 #include "apriltag.h"
@@ -22,17 +24,17 @@ extern "C" {
 #include "common/zarray.h"
 }
 
-#define TAGSIZE 0.1651 // tag size, in meters
+#define TAGSIZE 0.1651  // tag size, in meters
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
 class ApriltagsDetector : public rclcpp::Node {
-public:
+ public:
   ApriltagsDetector()
-      : Node("apriltags_detector"), tag_family_(nullptr),
+      : Node("apriltags_detector"),
+        tag_family_(nullptr),
         tag_detector_(nullptr) {
-
     // Decare parameters
     this->declare_parameter<std::string>("topic_name", "camera/image_raw");
     std::string topic_name = this->get_parameter("topic_name").as_string();
@@ -67,6 +69,12 @@ public:
 
     get_camera_calibration_data(&cam, &dist);
     get_extrinsic_params();
+    get_network_tables_params();
+
+    // Create the tag sender for sending tag data to the network tables.
+    // TODO: may need to use the camera idx rather than the serial number.
+    tag_sender_ = std::make_shared<DoubleArraySender>(
+        camera_serial_, table_address_, table_name_);
 
     int frame_width = 1280;
     int frame_height = 800;
@@ -109,46 +117,91 @@ public:
     image_pub_queue_->stop();
   }
 
-private:
-
+ private:
   void get_extrinsic_params() {
-
-    //TODO: Implement a method to parse the extrinsics parameters from the
-    // config files.
-    RCLCPP_INFO(this->get_logger(), "Extrinsics parameters not yet implemented!");
+    // TODO: Implement a method to parse the extrinsics parameters from the
+    //  config files.
+    RCLCPP_INFO(this->get_logger(),
+                "Extrinsics parameters not yet implemented!");
 
     return;
-
   }
 
-  void get_camera_calibration_data(frc971::apriltag::CameraMatrix* cam,
-                                   frc971::apriltag::DistCoeffs* dist) {
+  void get_network_tables_params() {
+    // Locate the system config file.
+    fs::path config_path =
+        ament_index_cpp::get_package_share_directory("vision_config_data");
+    fs::path config_file = config_path / "data" / "system_config.json";
 
-    // Locate the calibration file for the camera serial id that we are processing.
-    fs::path config_path = ament_index_cpp::get_package_share_directory("vision_config_data");
+    if (!std::filesystem::exists(config_file)) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find system config file at path: %s",
+                   config_file.c_str());
+    }
+
+    // Load the parameters from the file.
+    std::ifstream f(config_file);
+    json data = json::parse(f);
+
+    if (!data.contains("network_tables_config")) {
+      RCLCPP_ERROR(
+          this->get_logger(),
+          "Unable to find key \"network_tables_config\" in system config file");
+    }
+    if (!data["network_tables_config"].contains("table_address")) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find key \"table_address\" in "
+                   "\"network_tables_config\" record in system config file");
+    }
+    if (!data["network_tables_config"].contains("table_name")) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find key \"table_name\" in "
+                   "\"network_tables_config\" record in system config file");
+    }
+
+    data["network_tables_config"].at("table_address").get_to(table_address_);
+    data["network_tables_config"].at("table_name").get_to(table_name_);
+
+    RCLCPP_INFO(
+        this->get_logger(),
+        "Loaded network tables parameters table_address: %s, table_name: %s",
+        table_address_.c_str(), table_name_.c_str());
+
+    return;
+  }
+
+  void get_camera_calibration_data(frc971::apriltag::CameraMatrix *cam,
+                                   frc971::apriltag::DistCoeffs *dist) {
+    // Locate the calibration file for the camera serial id that we are
+    // processing.
+    fs::path config_path =
+        ament_index_cpp::get_package_share_directory("vision_config_data");
     std::ostringstream oss;
     oss << "calibrationmatrix_" << camera_serial_ << ".json";
     fs::path cal_file = config_path / "data" / "calibration" / oss.str();
 
     if (!std::filesystem::exists(cal_file)) {
-      RCLCPP_ERROR(this->get_logger(),
-        "Unable to find calibration parameters for camera %s at path: %s", camera_serial_.c_str(), cal_file.c_str());
-
+      RCLCPP_ERROR(
+          this->get_logger(),
+          "Unable to find calibration parameters for camera %s at path: %s",
+          camera_serial_.c_str(), cal_file.c_str());
     }
 
-    //Load the parameters from the file.
+    // Load the parameters from the file.
     std::ifstream f(cal_file);
     json data = json::parse(f);
 
     if (!data.contains("matrix")) {
-      RCLCPP_ERROR(this->get_logger(), "Unable to find key \"matrix\" in calibration file");
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find key \"matrix\" in calibration file");
     }
     if (!data.contains("disto")) {
-      RCLCPP_ERROR(this->get_logger(), "Unable to find key \"disto\" in calibration file");
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find key \"disto\" in calibration file");
     }
 
-    RCLCPP_INFO(this->get_logger(), "Loading camera calibration params from: %s",
-                cal_file.c_str());
+    RCLCPP_INFO(this->get_logger(),
+                "Loading camera calibration params from: %s", cal_file.c_str());
 
     // Setup Camera Matrix
     // Intrinsic Matrices are explained here:
@@ -167,18 +220,24 @@ private:
     dist->p2 = data["disto"][0][3];
     dist->k3 = data["disto"][0][4];
 
-    RCLCPP_INFO(this->get_logger(), "Loaded camera matrix parameters: fx: %f, fy: %f, cx: %f, cy: %f",
-      cam->fx, cam->fy, cam->cx, cam->cy);
-    RCLCPP_INFO(this->get_logger(), "Loaded distortion coeffs k1: %f, k2: %f, p1: %f, p2: %f, k3: %f",
-      dist->k1, dist->k2, dist->p1, dist->p2, dist->k3);
+    RCLCPP_INFO(
+        this->get_logger(),
+        "Loaded camera matrix parameters: fx: %f, fy: %f, cx: %f, cy: %f",
+        cam->fx, cam->fy, cam->cx, cam->cy);
+    RCLCPP_INFO(
+        this->get_logger(),
+        "Loaded distortion coeffs k1: %f, k2: %f, p1: %f, p2: %f, k3: %f",
+        dist->k1, dist->k2, dist->p1, dist->p2, dist->k3);
   }
 
   void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
-
     cv::Mat yuyv_img;
 
+    rclcpp::Time image_capture_time = msg->header.stamp;
+
     auto start = std::chrono::high_resolution_clock::now();
-    cv::Mat bgr_img = cv_bridge::toCvCopy(msg, "bgr8")->image;
+    auto cv_ptr = cv_bridge::toCvCopy(msg, "bgr8");  // Use smart pointer
+    cv::Mat bgr_img = cv_ptr->image;
 
     cv::cvtColor(bgr_img, yuyv_img, cv::COLOR_BGR2YUV_YUYV);
 
@@ -192,6 +251,7 @@ private:
     const zarray_t *detections = detector_->Detections();
     draw_detection_outlines(bgr_img, const_cast<zarray_t *>(detections));
 
+    std::vector<double> networktables_pose_data = {};
     if (zarray_size(detections) > 0) {
       for (int i = 0; i < zarray_size(detections); i++) {
         apriltag_detection_t *det;
@@ -202,13 +262,25 @@ private:
 
         apriltag_pose_t pose;
         double err = estimate_tag_pose(&info_, &pose);
+        cv::Vec3d aprilTagInCameraFrame(pose.t->data[0], pose.t->data[1],
+                                        pose.t->data[2]);
 
         RCLCPP_DEBUG(this->get_logger(),
-                    "Tag id: %d, x: %.6f, y: %.6f, z: %.6f, err: %.6f", det->id,
-                    pose.t->data[0], pose.t->data[1], pose.t->data[2], err);
+                     "Tag id: %d, x: %.6f, y: %.6f, z: %.6f, err: %.6f",
+                     det->id, pose.t->data[0], pose.t->data[1], pose.t->data[2],
+                     err);
+        networktables_pose_data.push_back(image_capture_time.seconds());
+        networktables_pose_data.push_back(det->id * 1.0);
+
+        networktables_pose_data.push_back(aprilTagInCameraFrame[0]);
+        networktables_pose_data.push_back(aprilTagInCameraFrame[1]);
+        networktables_pose_data.push_back(aprilTagInCameraFrame[2]);
       }
       detector_->ReinitializeDetections();
     }
+
+    // Send the pose data to the network tables.
+    tag_sender_->sendValue(networktables_pose_data);
 
     // Publish the message to the viewer
     auto outgoing_msg =
@@ -224,7 +296,7 @@ private:
             .count();
 
     RCLCPP_DEBUG(this->get_logger(), "Total Time: %ld ms, Det Time: %ld ms",
-                processing_time, det_processing_time);
+                 processing_time, det_processing_time);
   }
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscriber_;
@@ -237,6 +309,10 @@ private:
   image_transport::Publisher publisher_;
   std::string publish_to_topic_;
   std::string camera_serial_;
+  std::string table_address_;
+  std::string table_name_;
+
+  std::shared_ptr<DoubleArraySender> tag_sender_;
 
   apriltag_family_t *tag_family_;
   apriltag_detector_t *tag_detector_;

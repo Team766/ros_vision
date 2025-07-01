@@ -66,10 +66,6 @@ set(CUDA_LIB_SOURCES
     src/threshold.cu
     src/apriltag_utils.cu
     src/DoubleArraySender.cpp
-    src/DoubleValueSender.cpp
-    src/IntegerValueSender.cpp
-    src/BooleanValueSender.cpp
-    src/IntegerArraySender.cpp
     src/NetworkTablesUtil.cpp)
 
 # Add a library with the above source files

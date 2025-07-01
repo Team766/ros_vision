@@ -1,4 +1,5 @@
 #include <cv_bridge/cv_bridge.h>
+
 #include <image_transport/image_transport.hpp>
 #include <opencv2/opencv.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -8,9 +9,8 @@
 #include "vision_utils/publisher_queue.hpp"
 
 class CameraPublisher : public rclcpp::Node {
-public:
+ public:
   CameraPublisher() : Node("camera_publisher"), cap_() {
-
     // Decare parameters
     this->declare_parameter<int>("camera_idx", 0);
     int camera_idx = this->get_parameter("camera_idx").as_int();
@@ -44,13 +44,11 @@ public:
                 topic_name_.c_str());
 
     timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(16), // ~60fps
+        std::chrono::milliseconds(16),  // ~60fps
         std::bind(&CameraPublisher::timerCallback, this));
   }
 
-  ~CameraPublisher() {
-    image_pub_queue_->stop();
-  }
+  ~CameraPublisher() { image_pub_queue_->stop(); }
 
   void init() {
     // This can't be in the constructor because of the call to shared_from_this.
@@ -61,8 +59,10 @@ public:
         publisher_, 2);
   }
 
-private:
+ private:
   void timerCallback() {
+    rclcpp::Time capture_time = this->now();
+
     cv::Mat frame;
     cap_ >> frame;
     if (frame.empty()) {
@@ -72,8 +72,8 @@ private:
 
     auto msg =
         cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
-    msg->header.stamp = this->now();
-    msg->header.frame_id = "camera_frame"; // <-- add this line
+    msg->header.stamp = capture_time;
+    msg->header.frame_id = "camera_frame";
 
     image_pub_queue_->enqueue(msg);
   }
