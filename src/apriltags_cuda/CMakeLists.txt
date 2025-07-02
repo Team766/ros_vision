@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 set(CMAKE_CUDA_COMPILER /usr/bin/clang++-17 CACHE STRING "CUDA compiler" FORCE)
 set(CMAKE_CXX_COMPILER /usr/bin/clang++-17 CACHE STRING "CXX compiler" FORCE)
 
-project(apriltags_cuda LANGUAGES CUDA CXX)
+project(apriltags_cuda LANGUAGES C CUDA CXX)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -37,6 +37,7 @@ find_package(image_transport REQUIRED)
 find_package(vision_utils REQUIRED)
 find_package(vision_deps REQUIRED)
 find_package(glog REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
 #message(STATUS "prefix is ${CMAKE_INSTALL_PREFIX}")
 set(VISION_DEPS_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../install/vision_deps)
@@ -56,6 +57,11 @@ include_directories(
   ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag/common
 )
 
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/TagDetection.msg"
+  "msg/TagDetectionArray.msg"
+)
+
 set(CUDA_LIB_SOURCES 
     src/apriltag_detect.cu 
     src/apriltag_gpu.cu
@@ -69,14 +75,20 @@ set(CUDA_LIB_SOURCES
     src/NetworkTablesUtil.cpp)
 
 # Add a library with the above source files
-add_library(apriltag_cuda ${CUDA_LIB_SOURCES})
+add_library(apriltags_cuda_core SHARED ${CUDA_LIB_SOURCES})
 
-#add_dependencies(apriltag_cuda vision_deps_external vision_utils)
+#add_dependencies(apriltags_cuda_core vision_deps_external vision_utils)
 
 add_executable(apriltags_cuda_node src/apriltags_cuda_node.cu)
-ament_target_dependencies(apriltags_cuda_node rclcpp sensor_msgs cv_bridge image_transport vision_deps vision_utils)
+target_include_directories(apriltags_cuda_node PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_dependencies(apriltags_cuda_node ${PROJECT_NAME}__rosidl_typesupport_cpp)
+
+ament_target_dependencies(apriltags_cuda_node rclcpp sensor_msgs cv_bridge image_transport vision_deps vision_utils rosidl_default_runtime)
 target_link_libraries(apriltags_cuda_node
-    apriltag_cuda
+    apriltags_cuda_core
+    apriltags_cuda__rosidl_typesupport_cpp
     ${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib/libapriltag.so
     ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_core.so
     ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgproc.so
@@ -93,7 +105,9 @@ set_target_properties(apriltags_cuda_node PROPERTIES
     INSTALL_RPATH_USE_LINK_PATH TRUE
 )
 
-install(TARGETS apriltags_cuda_node apriltag_cuda
-    DESTINATION lib/${PROJECT_NAME})
+install(TARGETS apriltags_cuda_node apriltags_cuda_core
+    DESTINATION lib)
+
+ament_export_dependencies(rosidl_default_runtime)
 
 ament_package()

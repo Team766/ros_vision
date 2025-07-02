@@ -2,6 +2,8 @@
 
 #include <filesystem>
 #include <fstream>
+#include <geometry_msgs/msg/pose.hpp>
+#include <geometry_msgs/msg/pose_array.hpp>
 #include <image_transport/image_transport.hpp>
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
@@ -11,11 +13,13 @@
 #include <string>
 #include <vector>
 
-
 #include "DoubleArraySender.h"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "apriltag_gpu.h"
 #include "apriltag_utils.h"
+#include "apriltags_cuda/msg/tag_detection.hpp"
+#include "apriltags_cuda/msg/tag_detection_array.hpp"
+#include "apriltags_cuda/tag_detection_msg_helpers.hpp"
 #include "vision_utils/publisher_queue.hpp"
 
 extern "C" {
@@ -29,29 +33,107 @@ extern "C" {
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
+/**
+ * @brief Main node for AprilTag detection using GPU acceleration.
+ *
+ * This node subscribes to camera images, detects AprilTags using a
+ * GPU-accelerated detector, publishes tag detections to a custom ROS 2 message,
+ * and sends pose data to network tables.
+ *
+ * Topics:
+ *   - Subscribes: sensor_msgs::msg::Image (camera images)
+ *   - Publishes:  apriltags_cuda::msg::TagDetectionArray (tag detections)
+ *   - Publishes:  sensor_msgs::msg::Image (debug images)
+ *
+ * Parameters:
+ *   - topic_name: Input image topic
+ *   - camera_serial: Camera serial number
+ *   - publish_images_to_topic: Output topic for debug images
+ *   - publish_pose_to_topic: Output topic for tag detections
+ */
 class ApriltagsDetector : public rclcpp::Node {
  public:
+  /**
+   * @brief Construct the ApriltagsDetector node and initialize topics and
+   * AprilTag detector.
+   */
   ApriltagsDetector()
       : Node("apriltags_detector"),
         tag_family_(nullptr),
         tag_detector_(nullptr) {
-    // Decare parameters
+    setup_topics();
+    get_network_tables_params();
+    setup_apriltags();
+  }
+
+  /**
+   * @brief Initialize publishers and image transport after construction.
+   *
+   * This must be called after the node is fully constructed.
+   */
+  void init() {
+    // The object needs to be constructed before using shared_from_this, thus
+    // it is broken off into another method.
+    it_ = std::make_shared<image_transport::ImageTransport>(shared_from_this());
+    image_publisher_ = it_->advertise(publish_images_to_topic_, 10);
+    image_pub_queue_ = std::make_shared<
+        PublisherQueue<sensor_msgs::msg::Image, image_transport::Publisher>>(
+        image_publisher_, 2);
+    tag_detection_pub_ =
+        this->create_publisher<apriltags_cuda::msg::TagDetectionArray>(
+            publish_pose_to_topic_, 10);
+
+    RCLCPP_INFO(this->get_logger(), "Publishing images on topic: %s",
+                publish_images_to_topic_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Publishing pose on topic: %s",
+                publish_pose_to_topic_.c_str());
+  }
+
+  /**
+   * @brief Destructor. Cleans up detector and stops publisher queue.
+   */
+  ~ApriltagsDetector() {
+    apriltag_detector_destroy(tag_detector_);
+    teardown_tag_family(&tag_family_, tag_family_name_);
+    delete detector_;
+    image_pub_queue_->stop();
+  }
+
+ private:
+  /**
+   * @brief Declare and initialize all ROS 2 topics and parameters.
+   */
+  void setup_topics() {
     this->declare_parameter<std::string>("topic_name", "camera/image_raw");
     std::string topic_name = this->get_parameter("topic_name").as_string();
 
     this->declare_parameter<std::string>("camera_serial", "N/A");
     camera_serial_ = this->get_parameter("camera_serial").as_string();
 
-    this->declare_parameter<std::string>("publish_to_topic",
+    this->declare_parameter<std::string>("publish_images_to_topic",
                                          "apriltags/images");
-    publish_to_topic_ = this->get_parameter("publish_to_topic").as_string();
+    publish_images_to_topic_ =
+        this->get_parameter("publish_images_to_topic").as_string();
+
+    this->declare_parameter<std::string>("publish_pose_to_topic",
+                                         "camera/pose");
+    publish_pose_to_topic_ =
+        this->get_parameter("publish_pose_to_topic").as_string();
 
     subscriber_ = this->create_subscription<sensor_msgs::msg::Image>(
         topic_name, 1,
         std::bind(&ApriltagsDetector::imageCallback, this,
                   std::placeholders::_1));
+  }
 
-    // Apriltag detector setup
+  /**
+   * @brief Set up the AprilTag detector, camera calibration, and network
+   * tables.
+   *
+   * This method initializes the tag family, detector, loads camera calibration,
+   * extrinsics, and network tables configuration, and creates the GPU detector.
+   */
+  void setup_apriltags() {
     setup_tag_family(&tag_family_, tag_family_name_);
     tag_detector_ = apriltag_detector_create();
     apriltag_detector_add_family(tag_detector_, tag_family_);
@@ -63,16 +145,12 @@ class ApriltagsDetector : public rclcpp::Node {
     tag_detector_->refine_edges = true;
     tag_detector_->wp = workerpool_create(4);
 
-    // TODO: read these from a file or a topic.
+    // Camera and detector setup
     frc971::apriltag::CameraMatrix cam;
     frc971::apriltag::DistCoeffs dist;
-
     get_camera_calibration_data(&cam, &dist);
     get_extrinsic_params();
-    get_network_tables_params();
 
-    // Create the tag sender for sending tag data to the network tables.
-    // TODO: may need to use the camera idx rather than the serial number.
     tag_sender_ = std::make_shared<DoubleArraySender>(
         camera_serial_, table_address_, table_name_);
 
@@ -97,27 +175,6 @@ class ApriltagsDetector : public rclcpp::Node {
                 "GPU Apriltag Detector created, took %ld ms", processing_time);
   }
 
-  void init() {
-    // The object needs to be constructed before using shared_from_this, thus
-    // it is broken off into another method.
-    it_ = std::make_shared<image_transport::ImageTransport>(shared_from_this());
-    publisher_ = it_->advertise(publish_to_topic_, 10);
-    image_pub_queue_ = std::make_shared<
-        PublisherQueue<sensor_msgs::msg::Image, image_transport::Publisher>>(
-        publisher_, 2);
-
-    RCLCPP_INFO(this->get_logger(), "Publishing on topic: %s",
-                publish_to_topic_.c_str());
-  }
-
-  ~ApriltagsDetector() {
-    apriltag_detector_destroy(tag_detector_);
-    teardown_tag_family(&tag_family_, tag_family_name_);
-    delete detector_;
-    image_pub_queue_->stop();
-  }
-
- private:
   void get_extrinsic_params() {
     // TODO: Implement a method to parse the extrinsics parameters from the
     //  config files.
@@ -230,6 +287,15 @@ class ApriltagsDetector : public rclcpp::Node {
         dist->k1, dist->k2, dist->p1, dist->p2, dist->k3);
   }
 
+  /**
+   * @brief Callback function for incoming image messages.
+   *
+   * This function is called when a new image message is received. It converts
+   * the image to the YUYV format, runs the AprilTag detector, publishes the
+   * detections, and sends pose data to the network tables.
+   *
+   * @param msg The incoming image message.
+   */
   void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
     cv::Mat yuyv_img;
 
@@ -252,6 +318,8 @@ class ApriltagsDetector : public rclcpp::Node {
     draw_detection_outlines(bgr_img, const_cast<zarray_t *>(detections));
 
     std::vector<double> networktables_pose_data = {};
+    apriltags_cuda::msg::TagDetectionArray tag_detection_array_msg;
+    tag_detection_array_msg.detections.clear();
     if (zarray_size(detections) > 0) {
       for (int i = 0; i < zarray_size(detections); i++) {
         apriltag_detection_t *det;
@@ -271,10 +339,13 @@ class ApriltagsDetector : public rclcpp::Node {
                      err);
         networktables_pose_data.push_back(image_capture_time.seconds());
         networktables_pose_data.push_back(det->id * 1.0);
-
         networktables_pose_data.push_back(aprilTagInCameraFrame[0]);
         networktables_pose_data.push_back(aprilTagInCameraFrame[1]);
         networktables_pose_data.push_back(aprilTagInCameraFrame[2]);
+
+        apriltags_cuda::add_tag_detection(
+            tag_detection_array_msg, det->id, aprilTagInCameraFrame[0],
+            aprilTagInCameraFrame[1], aprilTagInCameraFrame[2]);
       }
       detector_->ReinitializeDetections();
     }
@@ -282,11 +353,14 @@ class ApriltagsDetector : public rclcpp::Node {
     // Send the pose data to the network tables.
     tag_sender_->sendValue(networktables_pose_data);
 
-    // Publish the message to the viewer
+    // Publish the marker array to the ROS topic
+    tag_detection_pub_->publish(tag_detection_array_msg);
+
+    // Publish the image message
     auto outgoing_msg =
         cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgr_img)
             .toImageMsg();
-    outgoing_msg->header.stamp = this->now();
+    outgoing_msg->header.stamp = image_capture_time;
     outgoing_msg->header.frame_id = "apriltag_detections";
     image_pub_queue_->enqueue(outgoing_msg);
 
@@ -306,13 +380,17 @@ class ApriltagsDetector : public rclcpp::Node {
   std::shared_ptr<
       PublisherQueue<sensor_msgs::msg::Image, image_transport::Publisher>>
       image_pub_queue_;
-  image_transport::Publisher publisher_;
-  std::string publish_to_topic_;
+  image_transport::Publisher image_publisher_;
+  std::string publish_images_to_topic_;
+  std::string publish_pose_to_topic_;
   std::string camera_serial_;
   std::string table_address_;
   std::string table_name_;
 
   std::shared_ptr<DoubleArraySender> tag_sender_;
+
+  rclcpp::Publisher<apriltags_cuda::msg::TagDetectionArray>::SharedPtr
+      tag_detection_pub_;
 
   apriltag_family_t *tag_family_;
   apriltag_detector_t *tag_detector_;
