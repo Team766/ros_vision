@@ -105,8 +105,11 @@ set_target_properties(apriltags_cuda_node PROPERTIES
     INSTALL_RPATH_USE_LINK_PATH TRUE
 )
 
-install(TARGETS apriltags_cuda_node apriltags_cuda_core
-    DESTINATION lib)
+install(TARGETS apriltags_cuda_node
+    DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS apriltags_cuda_core
+    LIBRARY DESTINATION lib)
 
 ament_export_dependencies(rosidl_default_runtime)
 
