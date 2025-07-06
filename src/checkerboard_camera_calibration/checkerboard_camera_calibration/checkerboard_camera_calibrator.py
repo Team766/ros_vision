@@ -67,6 +67,8 @@ class CheckerboardCalibrationNode(Node):
 
         if ret: # If chessboard corners are found
             self.num_consecutive_frames_detected += 1
+            cv2.drawChessboardCorners(img, (self.board_cols, self.board_rows), corners, ret)
+
 
         if self.num_consecutive_frames_detected >= 5:
             self.get_logger().info("Chessboard detected successfully.")
@@ -113,12 +115,16 @@ class CheckerboardCalibrationNode(Node):
         calib_results = {
             "matrix": mtx.tolist(),
             "distortion": dist.tolist(),
-            "rmse_reprojection_error": float(total_error)
+            "rmse_reprojection_error": float(total_error),
+            "method": "checkerboard",
+            "board_cols": self.board_cols,
+            "board_rows": self.board_rows,
+            "square_length": self.square_length,
         }
 
         camera_serial = self.get_parameter('camera_serial').value
 
-        output_file = os.path.join(os.getcwd(), f'checkerboard_calibrationmatrix_{camera_serial}.json')
+        output_file = os.path.join(os.getcwd(), f'calibrationmatrix_{camera_serial}.json')
         with open(output_file, 'w') as f:
             json.dump(calib_results, f, indent=4)
 

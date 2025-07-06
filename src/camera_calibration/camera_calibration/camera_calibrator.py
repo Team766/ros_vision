@@ -26,8 +26,8 @@ class CameraCalibrationNode(Node):
 
         self.board_cols = self.get_parameter('board_cols').value
         self.board_rows = self.get_parameter('board_rows').value
-        square_length = self.get_parameter('square_length').value
-        marker_length = self.get_parameter('marker_length').value
+        self.square_length = self.get_parameter('square_length').value
+        self.marker_length = self.get_parameter('marker_length').value
         subscriber_topic = self.get_parameter('subscriber_topic').value
         publisher_topic = self.get_parameter('publisher_topic').value
 
@@ -36,8 +36,8 @@ class CameraCalibrationNode(Node):
         self.dictionary = aruco.getPredefinedDictionary(aruco.DICT_4X4_250)
         self.board = aruco.CharucoBoard(
             (self.board_cols, self.board_rows),
-            squareLength=square_length,
-            markerLength=marker_length,
+            squareLength=self.square_length,
+            markerLength=self.marker_length,
             dictionary=self.dictionary
         )
         self.detector = aruco.CharucoDetector(self.board)
@@ -69,11 +69,12 @@ class CameraCalibrationNode(Node):
 
         if corners is not None and ids is not None and len(ids) >= 8:
             self.consecutive_frames_detected += 1
+            aruco.drawDetectedCornersCharuco(img, corners, ids, (0, 255, 0))
+            aruco.drawDetectedMarkers(img, marker_corners, marker_ids)
 
         if self.consecutive_frames_detected >= 5:
             aruco.drawDetectedCornersCharuco(img, corners, ids, (0, 255, 0))
             aruco.drawDetectedMarkers(img, marker_corners, marker_ids)
-
             self.all_corners.append(corners)
             self.all_ids.append(ids)
             self.captured_frames += 1
@@ -108,7 +109,12 @@ class CameraCalibrationNode(Node):
         calib_results = {
             "matrix": mtx.tolist(),
             "distortion": dist.tolist(),
-            "rmse_reprojection_error": rms
+            "rmse_reprojection_error": rms,
+            "method": "charuco",
+            "board_cols": self.board_cols,
+            "board_rows": self.board_rows,
+            "square_length": self.square_length,
+            "marker_length": self.marker_length,
         }
 
         camera_serial = self.get_parameter('camera_serial').value
