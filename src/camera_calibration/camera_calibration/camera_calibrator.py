@@ -57,6 +57,8 @@ class CameraCalibrationNode(Node):
 
         self.calibration_done = False
 
+        self.consecutive_frames_detected = 0
+
     def image_callback(self, msg):
         if self.calibration_done:
             return
@@ -65,7 +67,10 @@ class CameraCalibrationNode(Node):
 
         corners, ids, marker_corners, marker_ids = self.detector.detectBoard(img)
 
-        if corners is not None and ids is not None and len(ids) >= 16:
+        if corners is not None and ids is not None and len(ids) >= 8:
+            self.consecutive_frames_detected += 1
+
+        if self.consecutive_frames_detected >= 5:
             aruco.drawDetectedCornersCharuco(img, corners, ids, (0, 255, 0))
             aruco.drawDetectedMarkers(img, marker_corners, marker_ids)
 
@@ -73,6 +78,7 @@ class CameraCalibrationNode(Node):
             self.all_ids.append(ids)
             self.captured_frames += 1
             self.get_logger().info(f"Captured frame {self.captured_frames}/{self.max_frames}")
+            self.consecutive_frames_detected = 0
 
         annotated_image_msg = self.bridge.cv2_to_imgmsg(img, encoding='bgr8')
         self.publisher.publish(annotated_image_msg)
