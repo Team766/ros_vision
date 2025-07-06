@@ -35,9 +35,9 @@ def launch_setup(context, *args, **kwargs):
             }]
         ),
         Node(
-            package='checkerboard_camera_calibration',
-            executable='checkerboard_camera_calibrator',
-            name='checkerboard_camera_calibrator',
+            package='camera_calibration',
+            executable='checkerboard_calibrator',
+            name='checkerboard_calibrator',
             parameters=[{
                 "subscriber_topic": camera_topic,
                 "publisher_topic": f"/calibration/{cam_location}/image_annotated",

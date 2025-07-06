@@ -37,8 +37,8 @@ def launch_setup(context, *args, **kwargs):
         ),
         Node(
             package='camera_calibration',
-            executable='camera_calibrator',
-            name='camera_calibrator',
+            executable='charuco_calibrator',
+            name='charuco_calibrator',
             parameters=[{
                 "subscriber_topic": camera_topic,
                 "publisher_topic": f"/calibration/{cam_location}/image_annotated",

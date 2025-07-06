@@ -19,7 +19,8 @@ setup(
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': [ 'camera_calibrator = camera_calibration.camera_calibrator:main',
+        'console_scripts': [ 'charuco_calibrator = camera_calibration.charuco_camera_calibrator:main',
+                            'checkerboard_calibrator = camera_calibration.checkerboard_camera_calibrator:main'
         ],
     },
 )

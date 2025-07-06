@@ -7,11 +7,11 @@ import cv2.aruco as aruco
 import json
 import os
 
-class CameraCalibrationNode(Node):
+class CharucoCalibrationNode(Node):
     def __init__(self):
 
         super().__init__(
-            'camera_calibrator_node',
+            'charuco_calibrator_node',
             allow_undeclared_parameters=True,
         )
 
@@ -127,7 +127,7 @@ class CameraCalibrationNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    calibration_node = CameraCalibrationNode()
+    calibration_node = CharucoCalibrationNode()
     rclpy.spin(calibration_node)
     calibration_node.destroy_node()
     rclpy.shutdown()

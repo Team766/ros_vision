@@ -134,7 +134,7 @@ The calibration needs a charuco board printed as DICT_4x4, e.g. like one generat
 
 ```
 source install/setup.bash
-ros2 launch ros_vision_launch calibrate_camera.launch.py serial:=766 max_frames:=30 board_rows:=8 board_cols:=11 square_length:=0.015 marker_length:=0.011
+ros2 launch ros_vision_launch charuco_calibrate.launch.py serial:=766 max_frames:=30 board_rows:=8 board_cols:=11 square_length:=0.015 marker_length:=0.011
 ```
 
 The arguments are:
