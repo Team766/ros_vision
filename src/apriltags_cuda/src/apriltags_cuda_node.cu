@@ -82,6 +82,10 @@ class ApriltagsDetector : public rclcpp::Node {
     tag_detection_pub_ =
         this->create_publisher<apriltags_cuda::msg::TagDetectionArray>(
             publish_pose_to_topic_, 10);
+    // Add publisher for camera-frame poses
+    tag_detection_camera_pub_ =
+        this->create_publisher<apriltags_cuda::msg::TagDetectionArray>(
+            publish_pose_to_topic_ + "_camera", 10);
 
     RCLCPP_INFO(this->get_logger(), "Publishing images on topic: %s",
                 publish_images_to_topic_.c_str());
@@ -175,13 +179,100 @@ class ApriltagsDetector : public rclcpp::Node {
                 "GPU Apriltag Detector created, took %ld ms", processing_time);
   }
 
+  /**
+   * @brief Load extrinsic parameters (rotation and offset) for this camera from
+   * the system config file.
+   *
+   * Reads the rotation (3x3) and offset (3x1) from the extrinsics record for
+   * the camera position, and stores them in OpenCV cv::Mat (rotation) and
+   * cv::Vec3d (offset).
+   */
   void get_extrinsic_params() {
-    // TODO: Implement a method to parse the extrinsics parameters from the
-    //  config files.
-    RCLCPP_INFO(this->get_logger(),
-                "Extrinsics parameters not yet implemented!");
+    // Locate the system config file.
+    fs::path config_path =
+        ament_index_cpp::get_package_share_directory("vision_config_data");
+    fs::path config_file = config_path / "data" / "system_config.json";
 
-    return;
+    if (!std::filesystem::exists(config_file)) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find system config file at path: %s",
+                   config_file.c_str());
+      return;
+    }
+
+    // Load the parameters from the file.
+    std::ifstream f(config_file);
+    json data = json::parse(f);
+
+    if (!data.contains("camera_mounted_positions")) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find key \"camera_mounted_positions\" in system "
+                   "config file");
+      return;
+    }
+    if (!data.contains("extrinsics")) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find key \"extrinsics\" in system config file");
+      return;
+    }
+
+    std::string camera_position = "N/A";
+    if (data["camera_mounted_positions"].contains(camera_serial_)) {
+      camera_position =
+          data["camera_mounted_positions"][camera_serial_].get<std::string>();
+    } else {
+      RCLCPP_ERROR(
+          this->get_logger(),
+          "Unable to find camera serial %s in camera_mounted_positions in "
+          "system config file",
+          camera_serial_.c_str());
+      return;
+    }
+    if (!data["extrinsics"].contains(camera_position)) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find camera position %s in extrinsics in system "
+                   "config file",
+                   camera_position.c_str());
+      return;
+    }
+
+    RCLCPP_INFO(this->get_logger(),
+                "Found camera position %s for camera serial %s",
+                camera_position.c_str(), camera_serial_.c_str());
+
+    // Read rotation and offset
+    const auto &extr = data["extrinsics"][camera_position];
+    if (!extr.contains("rotation") || !extr.contains("offset")) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Extrinsics for %s missing 'rotation' or 'offset' field",
+                   camera_position.c_str());
+      return;
+    }
+    // Read rotation (should be 3x3 array)
+    cv::Mat rotation(3, 3, CV_64F);
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3; ++j) {
+        rotation.at<double>(i, j) = extr["rotation"][i][j];
+      }
+    }
+    // Read offset (should be 3x1 array)
+    cv::Vec3d offset;
+    for (int i = 0; i < 3; ++i) {
+      offset[i] = extr["offset"][i];
+    }
+    extrinsic_rotation_ = rotation;
+    extrinsic_offset_ = cv::Mat(offset);
+
+    RCLCPP_INFO(
+        this->get_logger(),
+        "Loaded extrinsics for %s: "
+        "rotation=[[%f,%f,%f],[%f,%f,%f],[%f,%f,%f]], offset=[%f,%f,%f]",
+        camera_position.c_str(), rotation.at<double>(0, 0),
+        rotation.at<double>(0, 1), rotation.at<double>(0, 2),
+        rotation.at<double>(1, 0), rotation.at<double>(1, 1),
+        rotation.at<double>(1, 2), rotation.at<double>(2, 0),
+        rotation.at<double>(2, 1), rotation.at<double>(2, 2), offset[0],
+        offset[1], offset[2]);
   }
 
   void get_network_tables_params() {
@@ -319,7 +410,9 @@ class ApriltagsDetector : public rclcpp::Node {
 
     std::vector<double> networktables_pose_data = {};
     apriltags_cuda::msg::TagDetectionArray tag_detection_array_msg;
+    apriltags_cuda::msg::TagDetectionArray tag_detection_camera_array_msg;
     tag_detection_array_msg.detections.clear();
+    tag_detection_camera_array_msg.detections.clear();
     if (zarray_size(detections) > 0) {
       for (int i = 0; i < zarray_size(detections); i++) {
         apriltag_detection_t *det;
@@ -333,19 +426,37 @@ class ApriltagsDetector : public rclcpp::Node {
         cv::Vec3d aprilTagInCameraFrame(pose.t->data[0], pose.t->data[1],
                                         pose.t->data[2]);
 
+        RCLCPP_DEBUG(
+            this->get_logger(),
+            "Tag id: %d, x: %.6f, y: %.6f, z: %.6f, err: %.6f in camera frame",
+            det->id, pose.t->data[0], pose.t->data[1], pose.t->data[2], err);
+
+        cv::Mat aprilTagInCameraFrameAsMat = cv::Mat(aprilTagInCameraFrame);
+        cv::Mat aprilTagInRobotFrame =
+            extrinsic_rotation_ * aprilTagInCameraFrameAsMat +
+            extrinsic_offset_;
+
         RCLCPP_DEBUG(this->get_logger(),
-                     "Tag id: %d, x: %.6f, y: %.6f, z: %.6f, err: %.6f",
-                     det->id, pose.t->data[0], pose.t->data[1], pose.t->data[2],
-                     err);
+                     "Tag id: %d, x: %.6f, y: %.6f, z: %.6f in robot frame",
+                     det->id, aprilTagInRobotFrame.at<double>(0),
+                     aprilTagInRobotFrame.at<double>(1),
+                     aprilTagInRobotFrame.at<double>(2));
+
         networktables_pose_data.push_back(image_capture_time.seconds());
         networktables_pose_data.push_back(det->id * 1.0);
-        networktables_pose_data.push_back(aprilTagInCameraFrame[0]);
-        networktables_pose_data.push_back(aprilTagInCameraFrame[1]);
-        networktables_pose_data.push_back(aprilTagInCameraFrame[2]);
+        networktables_pose_data.push_back(aprilTagInRobotFrame.at<double>(0));
+        networktables_pose_data.push_back(aprilTagInRobotFrame.at<double>(1));
+        networktables_pose_data.push_back(aprilTagInRobotFrame.at<double>(2));
 
-        apriltags_cuda::add_tag_detection(
-            tag_detection_array_msg, det->id, aprilTagInCameraFrame[0],
-            aprilTagInCameraFrame[1], aprilTagInCameraFrame[2]);
+        // Publish both camera frame and robot frame
+        apriltags_cuda::add_tag_detection(tag_detection_camera_array_msg, det->id,
+                                          aprilTagInCameraFrame[0],
+                                          aprilTagInCameraFrame[1],
+                                          aprilTagInCameraFrame[2]);
+        apriltags_cuda::add_tag_detection(tag_detection_array_msg, det->id,
+                                          aprilTagInRobotFrame.at<double>(0),
+                                          aprilTagInRobotFrame.at<double>(1),
+                                          aprilTagInRobotFrame.at<double>(2));
       }
       detector_->ReinitializeDetections();
     }
@@ -355,6 +466,7 @@ class ApriltagsDetector : public rclcpp::Node {
 
     // Publish the marker array to the ROS topic
     tag_detection_pub_->publish(tag_detection_array_msg);
+    tag_detection_camera_pub_->publish(tag_detection_camera_array_msg);
 
     // Publish the image message
     auto outgoing_msg =
@@ -391,12 +503,18 @@ class ApriltagsDetector : public rclcpp::Node {
 
   rclcpp::Publisher<apriltags_cuda::msg::TagDetectionArray>::SharedPtr
       tag_detection_pub_;
+  rclcpp::Publisher<apriltags_cuda::msg::TagDetectionArray>::SharedPtr
+      tag_detection_camera_pub_;
 
   apriltag_family_t *tag_family_;
   apriltag_detector_t *tag_detector_;
   apriltag_detection_info_t info_;
   frc971::apriltag::GpuDetector *detector_;
   const char *tag_family_name_ = "tag36h11";
+
+  // Extrinsic parameters
+  cv::Mat extrinsic_rotation_;  ///< 3x3 rotation matrix from extrinsics
+  cv::Mat extrinsic_offset_;    ///< 3x1 offset vector from extrinsics
 };
 
 int main(int argc, char *argv[]) {

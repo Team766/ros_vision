@@ -44,7 +44,7 @@ class CameraPublisher : public rclcpp::Node {
                 topic_name_.c_str());
 
     timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(16),  // ~60fps
+        std::chrono::milliseconds(10),  // ~100fps
         std::bind(&CameraPublisher::timerCallback, this));
   }
 
