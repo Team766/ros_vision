@@ -149,7 +149,8 @@ def generate_launch_description():
                     {
                         "topic_name": f"cameras/{cam_location}/image_raw",
                         "camera_serial": serial_id,
-                        "publish_to_topic": f"apriltags/{cam_location}/images",
+                        "publish_images_to_topic": f"apriltags/{cam_location}/images",
+                        "publish_pose_to_topic": f"apriltags/{cam_location}/pose",
                     },
                 ],
             )
