@@ -5,8 +5,9 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 int main(void) {
-  std::ifstream f("/home/nvidia/code/OrinVisionSystem/cameracalibration/"
-                  "calibrationmatrix.json");
+  std::ifstream f(
+      "/home/nvidia/code/OrinVisionSystem/cameracalibration/"
+      "calibrationmatrix.json");
   json data = json::parse(f);
   std::cout << "Matrix: " << std::endl;
   for (int i = 0; i < 3; ++i) {

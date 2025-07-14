@@ -8,11 +8,11 @@
 #include "networktables/NetworkTableInstance.h"
 
 class DoubleValueSender {
-private:
+ private:
   nt::NetworkTableInstance inst_;
   nt::DoublePublisher publisher_;
 
-public:
+ public:
   // Constructor declaration
   DoubleValueSender(std::string key);
 

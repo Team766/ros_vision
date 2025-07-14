@@ -15,7 +15,7 @@ namespace frc971::apriltag {
 
 // Class to find the blob index of a point in a point vector.
 class BlobExtentsIndexFinder {
-public:
+ public:
   BlobExtentsIndexFinder(const MinMaxExtents *extents_device,
                          size_t num_extents)
       : extents_device_(extents_device), num_extents_(num_extents) {}
@@ -45,7 +45,7 @@ public:
     return extents_device_[index];
   }
 
-private:
+ private:
   const MinMaxExtents *extents_device_;
   size_t num_extents_;
 
@@ -75,7 +75,7 @@ struct DistCoeffs {
 
 // GPU based april tag detector.
 class GpuDetector {
-public:
+ public:
   // The number of blobs we will consider when counting april tags.
   static constexpr size_t kMaxBlobs = IndexPoint::kMaxBlobs;
 
@@ -138,8 +138,8 @@ public:
     return extents_device_.Copy(NumQuads());
   }
 
-  std::vector<cub::KeyValuePair<long, MinMaxExtents>>
-  CopySelectedExtents() const {
+  std::vector<cub::KeyValuePair<long, MinMaxExtents>> CopySelectedExtents()
+      const {
     return selected_extents_device_.Copy(NumQuads());
   }
 
@@ -199,7 +199,7 @@ public:
   static bool UnDistort(double *u, double *v, const CameraMatrix *camera_matrix,
                         const DistCoeffs *distortion_coefficients);
 
-private:
+ private:
   void UpdateFitQuads();
 
   void AdjustPixelCenters();
@@ -209,7 +209,8 @@ private:
   static void QuadDecodeTask(void *_u);
 
   // Creates a GPU image wrapped around the provided memory.
-  template <typename T> GpuImage<T> ToGpuImage(GpuMemory<T> &memory) {
+  template <typename T>
+  GpuImage<T> ToGpuImage(GpuMemory<T> &memory) {
     if (memory.size() == width_ * height_) {
       return GpuImage<T>{
           .data = memory.get(),
@@ -358,6 +359,6 @@ private:
   zarray_t *detections_ = nullptr;
 };
 
-} // namespace frc971::apriltag
+}  // namespace frc971::apriltag
 
-#endif // FRC971_ORIN_APRILTAG_H_
+#endif  // FRC971_ORIN_APRILTAG_H_

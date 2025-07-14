@@ -9,11 +9,11 @@
 #include "networktables/NetworkTableInstance.h"
 
 class DoubleArraySender {
-private:
+ private:
   nt::NetworkTableInstance inst_;
   nt::DoubleArrayPublisher publisher_;
 
-public:
+ public:
   // Constructor declaration
   DoubleArraySender(std::string key);
 

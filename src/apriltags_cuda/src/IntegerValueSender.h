@@ -8,11 +8,11 @@
 #include "networktables/NetworkTableInstance.h"
 
 class IntegerValueSender {
-private:
+ private:
   nt::NetworkTableInstance inst_;
   nt::IntegerPublisher publisher_;
 
-public:
+ public:
   // Constructor declaration
   IntegerValueSender(std::string key);
 

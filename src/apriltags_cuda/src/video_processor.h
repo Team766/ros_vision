@@ -11,7 +11,7 @@ using namespace std;
 using namespace cv;
 
 class VideoProcessor {
-public:
+ public:
   VideoProcessor(const int camera_index, const std::string &tag_family_name,
                  const frc971::apriltag::CameraMatrix &camera_matrix,
                  const frc971::apriltag::DistCoeffs &distortion_coefficients,
@@ -22,7 +22,7 @@ public:
   bool initialize();
   bool process();
 
-private:
+ private:
   const std::string &tag_family_name_;
   int camera_index_;
   const frc971::apriltag::CameraMatrix &camera_matrix_;

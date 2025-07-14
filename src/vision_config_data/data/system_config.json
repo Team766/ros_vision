@@ -1,10 +1,47 @@
 {
     "camera_mounted_positions": {
-        "766": "right_front",
-        "cam13": "left_front",
-        "cam14": "right_front",
-        "cam11": "right_back",
-        "cam12": "left_back"
+        "766": {
+            "location": "right_front",
+            "width": 1280,
+            "height": 800,
+            "frame_rate": 100
+        },
+        "UC762": {
+            "location": "left_front",
+            "width": 1280,
+            "height": 800,
+            "frame_rate": 100
+        },
+        "010000": {
+            "location": "right_front",
+            "width": 1280,
+            "height": 720,
+            "frame_rate": 60
+        },
+        "cam13": {
+            "location": "left_front",
+            "width": 1280,
+            "height": 800,
+            "frame_rate": 100
+        },
+        "cam14": {
+            "location": "right_front",
+            "width": 1280,
+            "height": 800,
+            "frame_rate": 100
+        },
+        "cam11": {
+            "location": "right_back",
+            "width": 1280,
+            "height": 800,
+            "frame_rate": 100
+        },
+        "cam12": {
+            "location": "left_back",
+            "width": 1280,
+            "height": 800,
+            "frame_rate": 100
+        }
     },
     "extrinsics": {
         "left_front": {

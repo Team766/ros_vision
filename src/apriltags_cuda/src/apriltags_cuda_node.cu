@@ -13,6 +13,7 @@
 #include "apriltag_utils.h"
 
 #include "vision_utils/publisher_queue.hpp"
+#include "vision_utils/camera_utils.hpp"
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
@@ -68,8 +69,10 @@ public:
     get_camera_calibration_data(&cam, &dist);
     get_extrinsic_params();
 
-    int frame_width = 1280;
-    int frame_height = 800;
+    // Get camera width and height from vision_utils
+    auto camera_data = vision_utils::get_camera_data(camera_serial_);
+    int frame_width = camera_data.width;
+    int frame_height = camera_data.height;
 
     auto start = std::chrono::high_resolution_clock::now();
     detector_ = new frc971::apriltag::GpuDetector(frame_width, frame_height,

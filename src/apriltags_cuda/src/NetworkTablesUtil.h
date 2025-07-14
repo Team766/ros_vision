@@ -9,7 +9,7 @@ class NetworkTablesUtil {
   // private:
   // nt::NetworkTableInstance inst_;
 
-public:
+ public:
   // Constructor declaration
   NetworkTablesUtil();
 

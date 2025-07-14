@@ -15,6 +15,6 @@ void CudaToGreyscaleAndDecimateHalide(
     uint8_t *thresholded_image, size_t width, size_t height,
     size_t min_white_black_diff, CudaStream *stream);
 
-} // namespace frc971::apriltag
+}  // namespace frc971::apriltag
 
-#endif // FRC971_ORIN_THRESHOLD_H_
+#endif  // FRC971_ORIN_THRESHOLD_H_

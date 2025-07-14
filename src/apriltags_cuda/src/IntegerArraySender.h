@@ -10,11 +10,11 @@
 #include "networktables/NetworkTableInstance.h"
 
 class IntegerArraySender {
-private:
+ private:
   nt::NetworkTableInstance inst_;
   nt::IntegerArrayPublisher publisher_;
 
-public:
+ public:
   // Constructor declaration
   IntegerArraySender(std::string key);
 

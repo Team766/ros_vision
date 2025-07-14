@@ -1,17 +1,18 @@
 #include <cv_bridge/cv_bridge.h>
+
 #include <opencv2/opencv.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
 class ImageProcessor : public rclcpp::Node {
-public:
+ public:
   ImageProcessor() : Node("image_processor") {
     subscriber_ = this->create_subscription<sensor_msgs::msg::Image>(
         "camera/image_raw", 10,
         std::bind(&ImageProcessor::imageCallback, this, std::placeholders::_1));
   }
 
-private:
+ private:
   void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
     auto start = std::chrono::high_resolution_clock::now();
 

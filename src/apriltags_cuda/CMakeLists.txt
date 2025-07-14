@@ -100,4 +100,11 @@ set_target_properties(apriltags_cuda_node PROPERTIES
 install(TARGETS apriltags_cuda_node apriltag_cuda
     DESTINATION lib/${PROJECT_NAME})
 
+# Format target for clang-format
+file(GLOB_RECURSE ALL_SOURCE_FILES src/*.cpp src/*.h)
+add_custom_target(format
+    COMMAND clang-format -i -style=Google ${ALL_SOURCE_FILES}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 ament_package()

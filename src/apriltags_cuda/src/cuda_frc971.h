@@ -11,9 +11,9 @@
 // CHECKs that a cuda method returned success.
 // TODO(austin): This will not handle if and else statements quite right, fix if
 // we care.
-#define CHECK_CUDA(condition)                                                  \
-  if (auto c = condition)                                                      \
-  LOG(FATAL) << "Check failed: " #condition " (" << cudaGetErrorString(c)      \
+#define CHECK_CUDA(condition)                                             \
+  if (auto c = condition)                                                 \
+  LOG(FATAL) << "Check failed: " #condition " (" << cudaGetErrorString(c) \
              << ") "
 
 namespace frc971::apriltag {
@@ -21,7 +21,7 @@ namespace frc971::apriltag {
 // Class to manage the lifetime of a Cuda stream.  This is used to provide
 // relative ordering between kernels on the same stream.
 class CudaStream {
-public:
+ public:
   CudaStream() { CHECK_CUDA(cudaStreamCreate(&stream_)); }
 
   CudaStream(const CudaStream &) = delete;
@@ -32,14 +32,14 @@ public:
   // Returns the stream.
   cudaStream_t get() { return stream_; }
 
-private:
+ private:
   cudaStream_t stream_;
 };
 
 // Class to manage the lifetime of a Cuda Event.  Cuda events are used for
 // timing events on a stream.
 class CudaEvent {
-public:
+ public:
   CudaEvent() { CHECK_CUDA(cudaEventCreate(&event_)); }
 
   CudaEvent(const CudaEvent &) = delete;
@@ -64,14 +64,15 @@ public:
   // Waits until the event has been triggered.
   void Synchronize() { CHECK_CUDA(cudaEventSynchronize(event_)); }
 
-private:
+ private:
   cudaEvent_t event_;
 };
 
 // Class to manage the lifetime of page locked host memory for fast copies back
 // to host memory.
-template <typename T> class HostMemory {
-public:
+template <typename T>
+class HostMemory {
+ public:
   // Allocates a block of memory for holding up to size objects of type T.
   HostMemory(size_t size) {
     T *memory;
@@ -99,13 +100,14 @@ public:
     memcpy(other, span_.data(), sizeof(T) * size());
   }
 
-private:
+ private:
   std::span<T> span_;
 };
 
 // Class to manage the lifetime of device memory.
-template <typename T> class GpuMemory {
-public:
+template <typename T>
+class GpuMemory {
+ public:
   // Allocates a block of memory for holding up to size objects of type T in
   // device memory.
   GpuMemory(size_t size) : size_(size) {
@@ -188,7 +190,7 @@ public:
   // it.
   std::vector<T> Copy() const { return Copy(size_); }
 
-private:
+ private:
   T *memory_;
   const size_t size_;
 };
@@ -201,6 +203,6 @@ void CheckAndSynchronize(std::string_view message = "");
 void MaybeCheckAndSynchronize();
 void MaybeCheckAndSynchronize(std::string_view message);
 
-} // namespace frc971::apriltag
+}  // namespace frc971::apriltag
 
-#endif // FRC971_ORIN_CUDA_H_
+#endif  // FRC971_ORIN_CUDA_H_

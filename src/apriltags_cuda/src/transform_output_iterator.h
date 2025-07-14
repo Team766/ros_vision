@@ -7,7 +7,7 @@ namespace frc971::apriltag {
 template <typename InputType, typename OutputType, typename ConversionOp,
           typename OffsetT = ptrdiff_t>
 class TransformOutputIterator {
-private:
+ private:
   // proxy object to be able to convert when assigning value
   struct Reference {
     OutputType *ptr;
@@ -20,7 +20,7 @@ private:
     }
   };
 
-public:
+ public:
   // typedefs may not be neeeded for iterator to work but is here to maintain
   // similarity to cub's CacheModifiedOutputIterator
   typedef TransformOutputIterator self_type;
@@ -69,22 +69,22 @@ public:
   }
 
   // equal to
-  __host__ __device__ __forceinline__ bool
-  operator==(const TransformOutputIterator &rhs) const {
+  __host__ __device__ __forceinline__ bool operator==(
+      const TransformOutputIterator &rhs) const {
     return ptr == rhs.ptr;
   }
 
   // not equal to
-  __host__ __device__ __forceinline__ bool
-  operator!=(const TransformOutputIterator &rhs) const {
+  __host__ __device__ __forceinline__ bool operator!=(
+      const TransformOutputIterator &rhs) const {
     return ptr != rhs.ptr;
   }
 
-private:
+ private:
   const ConversionOp convert_op;
   OutputType *ptr;
 };
 
-} // namespace frc971::apriltag
+}  // namespace frc971::apriltag
 
-#endif // FRC971_TRANSFORM_OUTPUT_ITERATOR_
+#endif  // FRC971_TRANSFORM_OUTPUT_ITERATOR_

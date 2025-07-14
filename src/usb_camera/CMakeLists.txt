@@ -15,6 +15,11 @@ find_package(image_transport REQUIRED)
 find_package(vision_utils)
 find_package(vision_deps)
 
+set(VISION_DEPS_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../install/vision_deps)
+include_directories(
+  ${VISION_DEPS_INSTALL_DIR}/json-install/include/
+)
+
 add_executable(usb_camera_node src/usb_camera_node.cpp)
 ament_target_dependencies(usb_camera_node rclcpp sensor_msgs cv_bridge image_transport OpenCV vision_utils vision_deps)
 
@@ -26,5 +31,11 @@ install(TARGETS
   image_processor_node
   DESTINATION lib/${PROJECT_NAME})
 
+# Format target for clang-format
+file(GLOB_RECURSE ALL_SOURCE_FILES src/*.cpp src/*.h)
+add_custom_target(format
+    COMMAND clang-format -i -style=Google ${ALL_SOURCE_FILES}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
 ament_package()

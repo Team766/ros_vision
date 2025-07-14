@@ -10,11 +10,21 @@ from ament_index_python.packages import get_package_share_directory
 BY_ID_PATH = "/dev/v4l/by-id/"
 """Path to the directory containing persistent V4L device symlinks by hardware ID."""
 
+class CameraData:
+    def __init__(self, json_data, serial_number):
+        self.serial_number = serial_number
+        self.location = json_data["location"]
+        # Add more fields as needed, e.g. width, height, frame_rate
+        self.width = json_data.get("width")
+        self.height = json_data.get("height")
+        self.frame_rate = json_data.get("frame_rate")
+
 
 def scan_for_cameras():
     """
     For each camera, find the /dev/video* device associated with its -index0 symlink,
-    and map the serial number to the actual video index (as integer).
+    and map the serial number (last underscore-separated group before -video-index0)
+    to the actual video index (as integer).
     """
     if not os.path.exists(BY_ID_PATH):
         raise Exception(f"Error: {BY_ID_PATH} does not exist.")
@@ -22,15 +32,15 @@ def scan_for_cameras():
     cameras_by_serial_id = {}
     for entry in os.listdir(BY_ID_PATH):
         # Only consider symlinks ending in -index0 (main video stream)
-        if "Camera" not in entry or not entry.endswith("index0"):
+        if not entry.endswith("index0"):
             continue
 
-        # Extract the serial number from the symlink name
-        match = re.search(r"Camera_(\d+)", entry)
+        # Extract the serial number as the last group before -video-index0
+        match = re.search(r"_([^_]+)-video-index0$", entry)
         if not match:
             continue  # Or raise error, up to you
 
-        serial = match.group(1)
+        serial = match.group(1).replace(".", "")
 
         # Resolve symlink to get the /dev/video* device path
         device_path = os.path.realpath(os.path.join(BY_ID_PATH, entry))
@@ -45,10 +55,8 @@ def scan_for_cameras():
 
     if not cameras_by_serial_id:
         msg = "\n\nError: No camera devices found in by-id entries!\n\n"
-        msg += "This utility depends on finding the string 'Camera' somewhere in the filename.\n"
         msg += f"We found these devices: {list(os.listdir(BY_ID_PATH))}\n\n"
-        msg += "To debug, try listing the contents of /dev/v4l/by-id and confirming that Camera is in the device filename.\n"
-        msg += "With an arducam, try resetting the serial number so that the Device Name is 'Camera': https://docs.arducam.com/UVC-Camera/Serial-Number-Tool-Guide/"
+        msg += "To debug, try listing the contents of /dev/v4l/by-id and confirming that your cameras are present.\n"
         raise Exception(msg)
 
     return cameras_by_serial_id
@@ -98,8 +106,7 @@ def get_config_data(cameras_by_serial_id):
     camera_mounted_positions = config_data["camera_mounted_positions"]
     result = {}
     for k, v in cameras_by_serial_id.items():
-        result[k] = camera_mounted_positions[k]
-
+        result[k] = CameraData(camera_mounted_positions[k], k)
     return result
 
 
@@ -119,13 +126,13 @@ def generate_launch_description():
     cameras_by_serial_id = scan_for_cameras()
     print(f"Found cameras: {cameras_by_serial_id}")
 
-    cameras_by_location = get_config_data(cameras_by_serial_id)
-    print(f"Found locations: {cameras_by_location}")
+    cameras = get_config_data(cameras_by_serial_id)
+    print(f"Found camera data: {cameras}")
 
-    # For each camera found, set up the image processing pipeline.
     nodes = []
     for serial_id, camera_idx in cameras_by_serial_id.items():
-        cam_location = cameras_by_location[serial_id]
+        cam_data = cameras[serial_id]
+        cam_location = cam_data.location
         nodes.append(
             Node(
                 package="usb_camera",
@@ -166,3 +173,4 @@ def generate_launch_description():
     )
 
     return LaunchDescription(nodes)
+

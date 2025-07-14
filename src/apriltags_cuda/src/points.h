@@ -82,14 +82,14 @@ struct QuadBoundaryPoint {
   // Returns the change in x derived from the search direction.
   __forceinline__ __host__ __device__ int32_t dx() const {
     switch (key & 0x3) {
-    case 0:
-      return 1;
-    case 1:
-      return 1;
-    case 2:
-      return 0;
-    case 3:
-      return -1;
+      case 0:
+        return 1;
+      case 1:
+        return 1;
+      case 2:
+        return 0;
+      case 3:
+        return -1;
     }
     return 0;
   }
@@ -97,12 +97,12 @@ struct QuadBoundaryPoint {
   // Returns the change in y derived from the search direction.
   __forceinline__ __host__ __device__ int32_t dy() const {
     switch (key & 0x3) {
-    case 0:
-      return 0;
-    case 1:
-    case 2:
-    case 3:
-      return 1;
+      case 0:
+        return 0;
+      case 1:
+      case 2:
+      case 3:
+        return 1;
     }
     return 0;
   }
@@ -125,8 +125,8 @@ struct QuadBoundaryPoint {
   }
 
   // Returns the black to white or white to black bit.
-  __forceinline__ __host__ __device__ void
-  set_black_to_white(bool black_to_white) {
+  __forceinline__ __host__ __device__ void set_black_to_white(
+      bool black_to_white) {
     key = (key & 0xfffffffffffffff7ull) |
           (static_cast<uint64_t>(black_to_white) << 3);
   }
@@ -135,16 +135,16 @@ struct QuadBoundaryPoint {
   }
 
   // Various operators to make it easy to compare points.
-  __forceinline__ __host__ __device__ bool
-  operator!=(const QuadBoundaryPoint other) const {
+  __forceinline__ __host__ __device__ bool operator!=(
+      const QuadBoundaryPoint other) const {
     return other.key != key;
   }
-  __forceinline__ __host__ __device__ bool
-  operator==(const QuadBoundaryPoint other) const {
+  __forceinline__ __host__ __device__ bool operator==(
+      const QuadBoundaryPoint other) const {
     return other.key == key;
   }
-  __forceinline__ __host__ __device__ bool
-  operator<(const QuadBoundaryPoint other) const {
+  __forceinline__ __host__ __device__ bool operator<(
+      const QuadBoundaryPoint other) const {
     return key < other.key;
   }
 
@@ -223,26 +223,26 @@ struct IndexPoint {
 
   __forceinline__ __host__ __device__ int32_t dx() const {
     switch (key & 0x3) {
-    case 0:
-      return 1;
-    case 1:
-      return 1;
-    case 2:
-      return 0;
-    case 3:
-      return -1;
+      case 0:
+        return 1;
+      case 1:
+        return 1;
+      case 2:
+        return 0;
+      case 3:
+        return -1;
     }
     return 0;
   }
 
   __forceinline__ __host__ __device__ int32_t dy() const {
     switch (key & 0x3) {
-    case 0:
-      return 0;
-    case 1:
-    case 2:
-    case 3:
-      return 1;
+      case 0:
+        return 0;
+      case 1:
+      case 2:
+      case 3:
+        return 1;
     }
     return 0;
   }
@@ -265,8 +265,8 @@ struct IndexPoint {
     return key & 0xffffff;
   }
 
-  __forceinline__ __host__ __device__ void
-  set_black_to_white(bool black_to_white) {
+  __forceinline__ __host__ __device__ void set_black_to_white(
+      bool black_to_white) {
     key = (key & 0xfffffffffffffff7ull) |
           (static_cast<uint64_t>(black_to_white) << 3);
   }
@@ -282,20 +282,20 @@ std::ostream &operator<<(std::ostream &os, const IndexPoint &point);
 
 // Decomposer for sorting which just returns the key.
 struct QuadBoundaryPointDecomposer {
-  __host__ __device__ ::cuda::std::tuple<uint64_t &>
-  operator()(QuadBoundaryPoint &key) const {
+  __host__ __device__ ::cuda::std::tuple<uint64_t &> operator()(
+      QuadBoundaryPoint &key) const {
     return {key.key};
   }
 };
 
 // Decomposer for sorting which just returns the key.
 struct QuadIndexPointDecomposer {
-  __host__ __device__ ::cuda::std::tuple<uint64_t &>
-  operator()(IndexPoint &key) const {
+  __host__ __device__ ::cuda::std::tuple<uint64_t &> operator()(
+      IndexPoint &key) const {
     return {key.key};
   }
 };
 
-} // namespace frc971::apriltag
+}  // namespace frc971::apriltag
 
-#endif // FRC971_ORIN_POINTS_H_
+#endif  // FRC971_ORIN_POINTS_H_

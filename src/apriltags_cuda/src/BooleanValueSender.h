@@ -8,11 +8,11 @@
 #include "networktables/NetworkTableInstance.h"
 
 class BooleanValueSender {
-private:
+ private:
   nt::NetworkTableInstance inst_;
   nt::BooleanPublisher publisher_;
 
-public:
+ public:
   // Constructor declaration
   BooleanValueSender(std::string key);
 
