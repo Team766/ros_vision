@@ -1,4 +1,4 @@
-#include "cuda_frc971.h"
+#include "apriltags_cuda/cuda_frc971.h"
 #include "gflags/gflags.h"
 #include "glog/logging.h"
 

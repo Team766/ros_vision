@@ -54,6 +54,7 @@ include_directories(
   ${VISION_DEPS_INSTALL_DIR}/json-install/include/
   ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag
   ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag/common
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 set(CUDA_LIB_SOURCES 
@@ -77,7 +78,7 @@ add_library(apriltag_cuda ${CUDA_LIB_SOURCES})
 
 #add_dependencies(apriltag_cuda vision_deps_external vision_utils)
 
-add_executable(apriltags_cuda_node src/apriltags_cuda_node.cu)
+add_executable(apriltags_cuda_node src/apriltags_cuda_node.cu src/apriltags_detector.cu)
 ament_target_dependencies(apriltags_cuda_node rclcpp sensor_msgs cv_bridge image_transport vision_deps vision_utils)
 target_link_libraries(apriltags_cuda_node
     apriltag_cuda
@@ -101,7 +102,7 @@ install(TARGETS apriltags_cuda_node apriltag_cuda
     DESTINATION lib/${PROJECT_NAME})
 
 # Format target for clang-format
-file(GLOB_RECURSE ALL_SOURCE_FILES src/*.cpp src/*.h)
+file(GLOB_RECURSE ALL_SOURCE_FILES src/*.cpp src/*.h include/apriltags_cuda/*.h)
 add_custom_target(format
     COMMAND clang-format -i -style=Google ${ALL_SOURCE_FILES}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}

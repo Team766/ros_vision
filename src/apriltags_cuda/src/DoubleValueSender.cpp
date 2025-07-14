@@ -1,6 +1,6 @@
-#include "DoubleValueSender.h"
+#include "apriltags_cuda/DoubleValueSender.h"
 
-#include "NetworkTablesConfig.h"
+#include "apriltags_cuda/NetworkTablesConfig.h"
 
 /*
 Right now, the table is /SmartDashboard so we can visualize the values sent from

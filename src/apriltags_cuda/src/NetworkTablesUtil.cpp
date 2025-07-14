@@ -1,6 +1,6 @@
-#include "NetworkTablesUtil.h"
+#include "apriltags_cuda/NetworkTablesUtil.h"
 
-#include "NetworkTablesConfig.h"
+#include "apriltags_cuda/NetworkTablesConfig.h"
 
 NetworkTablesUtil::NetworkTablesUtil() {
   //   inst_ = nt::NetworkTableInstance::GetDefault();

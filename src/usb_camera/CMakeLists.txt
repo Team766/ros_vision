@@ -18,9 +18,10 @@ find_package(vision_deps)
 set(VISION_DEPS_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../install/vision_deps)
 include_directories(
   ${VISION_DEPS_INSTALL_DIR}/json-install/include/
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-add_executable(usb_camera_node src/usb_camera_node.cpp)
+add_executable(usb_camera_node src/usb_camera_node.cpp src/camera_publisher.cpp)
 ament_target_dependencies(usb_camera_node rclcpp sensor_msgs cv_bridge image_transport OpenCV vision_utils vision_deps)
 
 add_executable(image_processor_node src/image_processor_node.cpp)

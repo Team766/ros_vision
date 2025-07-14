@@ -1,6 +1,6 @@
-#include "BooleanValueSender.h"
+#include "apriltags_cuda/BooleanValueSender.h"
 
-#include "NetworkTablesConfig.h"
+#include "apriltags_cuda/NetworkTablesConfig.h"
 
 /*
 Right now, the table is /SmartDashboard so we can visualize the values sent from
