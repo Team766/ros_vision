@@ -37,6 +37,10 @@ find_package(image_transport REQUIRED)
 find_package(vision_utils REQUIRED)
 find_package(vision_deps REQUIRED)
 find_package(glog REQUIRED)
+find_package(ament_cmake_gtest REQUIRED)
+find_package(GTest REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
 #message(STATUS "prefix is ${CMAKE_INSTALL_PREFIX}")
 set(VISION_DEPS_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../install/vision_deps)
@@ -101,11 +105,33 @@ set_target_properties(apriltags_cuda_node PROPERTIES
 install(TARGETS apriltags_cuda_node apriltag_cuda
     DESTINATION lib/${PROJECT_NAME})
 
+install(DIRECTORY test/data/
+  DESTINATION share/${PROJECT_NAME}/test/data
+)
+
 # Format target for clang-format
 file(GLOB_RECURSE ALL_SOURCE_FILES src/*.cpp src/*.h include/apriltags_cuda/*.h)
 add_custom_target(format
     COMMAND clang-format -i -style=Google ${ALL_SOURCE_FILES}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+if(BUILD_TESTING)
+  ament_add_gtest(gpu_detector_test test/gpu_detector_test.cu)
+  target_link_libraries(gpu_detector_test
+    apriltag_cuda
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib/libapriltag.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_core.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgproc.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_highgui.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_videoio.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgcodecs.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libntcore.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libwpiutil.so
+    glog::glog
+    ${OpenCV_LIBS}
+  )
+  ament_target_dependencies(gpu_detector_test ament_index_cpp)
+endif()
 
 ament_package()
