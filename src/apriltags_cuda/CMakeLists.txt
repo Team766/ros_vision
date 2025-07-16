@@ -105,6 +105,12 @@ set_target_properties(apriltags_cuda_node PROPERTIES
 install(TARGETS apriltags_cuda_node apriltag_cuda
     DESTINATION lib/${PROJECT_NAME})
 
+# Install test Python scripts
+install(PROGRAMS
+  test/test_image_publisher.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 install(DIRECTORY test/data/
   DESTINATION share/${PROJECT_NAME}/test/data
 )
@@ -117,6 +123,10 @@ add_custom_target(format
 )
 
 if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  find_package(launch_testing_ament_cmake REQUIRED)
+  
+  # C++ unit test
   ament_add_gtest(gpu_detector_test test/gpu_detector_test.cu)
   target_link_libraries(gpu_detector_test
     apriltag_cuda
@@ -132,6 +142,11 @@ if(BUILD_TESTING)
     ${OpenCV_LIBS}
   )
   ament_target_dependencies(gpu_detector_test ament_index_cpp)
+  
+  # Python integration test with launch testing
+  add_launch_test(test/test_apriltags_detector.py
+    TIMEOUT 60
+  )
 endif()
 
 ament_package()
