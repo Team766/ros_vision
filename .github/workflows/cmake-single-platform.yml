@@ -15,10 +15,9 @@ env:
 jobs:
   build:
     name: Build Successfully
-    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
-    # You can convert this to a matrix build if you need cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
-    runs-on: ubuntu-latest
+    # Use self-hosted runner with GPU for CUDA tests
+    runs-on: [self-hosted, linux, gpu]
+    # Alternative: runs-on: ubuntu-latest (for CPU-only fallback)
 
     steps:
     - name: Check disk space
@@ -91,8 +90,18 @@ jobs:
 
     - name: Run tests
       run: |
-        docker run --rm -v ${{ github.workspace }}:/workspace ros_vision:latest \
-          bash -c "cd /workspace && echo \"hook up some real tests someday\" "
+        docker run --rm --gpus all -v ${{ github.workspace }}:/workspace ros_vision:latest \
+          bash -c "cd /workspace && \
+          source build_env_vars.sh && \
+          source install/setup.bash && \
+          if nvidia-smi &> /dev/null; then \
+            echo 'GPU detected - running full test suite including CUDA tests'; \
+            colcon test --packages-select apriltags_cuda --event-handlers console_direct+; \
+          else \
+            echo 'No GPU detected - running CPU-only tests'; \
+            colcon test --packages-select apriltags_cuda --event-handlers console_direct+ --pytest-args '-k \"not Gpu\"'; \
+          fi && \
+          colcon test-result --verbose"
 
     - name: Cache build
       uses: actions/cache@v4
