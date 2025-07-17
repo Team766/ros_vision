@@ -22,15 +22,31 @@ def scan_for_cameras():
     cameras_by_serial_id = {}
     for entry in os.listdir(BY_ID_PATH):
         # Only consider symlinks ending in -index0 (main video stream)
-        if "Camera" not in entry or not entry.endswith("index0"):
+        if not entry.endswith("index0"):
+            continue
+            
+        # Check if this is a camera device (broader pattern matching)
+        if "Camera" not in entry and "camera" not in entry.lower():
             continue
 
         # Extract the serial number from the symlink name
+        # First try the original pattern for devices with Camera_(\d+)
         match = re.search(r"Camera_(\d+)", entry)
-        if not match:
-            continue  # Or raise error, up to you
-
-        serial = match.group(1)
+        if match:
+            serial = match.group(1)
+        else:
+            # Try Arducam pattern: extract the serial from UC### or similar
+            arducam_match = re.search(r"USB_Camera_([A-Z0-9]+)", entry)
+            if arducam_match:
+                serial = arducam_match.group(1)
+            else:
+                # Generic fallback: extract any alphanumeric identifier before -video-index0
+                generic_match = re.search(r"([A-Z0-9]+)-video-index0$", entry)
+                if generic_match:
+                    serial = generic_match.group(1)
+                else:
+                    print(f"Warning: Could not extract serial from {entry}, skipping")
+                    continue
 
         # Resolve symlink to get the /dev/video* device path
         device_path = os.path.realpath(os.path.join(BY_ID_PATH, entry))
@@ -38,14 +54,16 @@ def scan_for_cameras():
         # Robustly extract the number from /dev/videoN
         vid_match = re.search(r"/dev/video(\d+)$", device_path)
         if not vid_match:
-            continue  # Or raise error, up to you
+            print(f"Warning: Could not extract video index from {device_path}, skipping")
+            continue
 
         video_index = int(vid_match.group(1))
         cameras_by_serial_id[serial] = video_index
+        print(f"Found camera: serial={serial}, video_index={video_index}, device={entry}")
 
     if not cameras_by_serial_id:
         msg = "\n\nError: No camera devices found in by-id entries!\n\n"
-        msg += "This utility depends on finding the string 'Camera' somewhere in the filename.\n"
+        msg += "This utility depends on finding the string 'Camera' or 'camera' somewhere in the filename.\n"
         msg += f"We found these devices: {list(os.listdir(BY_ID_PATH))}\n\n"
         msg += "To debug, try listing the contents of /dev/v4l/by-id and confirming that Camera is in the device filename.\n"
         msg += "With an arducam, try resetting the serial number so that the Device Name is 'Camera': https://docs.arducam.com/UVC-Camera/Serial-Number-Tool-Guide/"

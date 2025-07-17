@@ -1,6 +1,7 @@
 {
     "camera_mounted_positions": {
-        "766": "center_front"
+        "766": "center_front",
+        "UC762": "center_front"
     },
     "extrinsics": {
         "center_front": {

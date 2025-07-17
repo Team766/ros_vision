@@ -392,6 +392,16 @@ class ApriltagsDetector : public rclcpp::Node {
 
     rclcpp::Time image_capture_time = msg->header.stamp;
 
+    // Measure latency between image capture and receipt by apriltags node
+    rclcpp::Time current_time = this->now();
+    auto latency_duration = current_time - image_capture_time;
+    double latency_ms = latency_duration.seconds() * 1000.0;
+
+    RCLCPP_INFO(this->get_logger(),
+                "Image latency: %.2f ms (captured at %.6f, received at %.6f)",
+                latency_ms, image_capture_time.seconds(),
+                current_time.seconds());
+
     auto start = std::chrono::high_resolution_clock::now();
     auto cv_ptr = cv_bridge::toCvCopy(msg, "bgr8");  // Use smart pointer
     cv::Mat bgr_img = cv_ptr->image;
@@ -449,10 +459,9 @@ class ApriltagsDetector : public rclcpp::Node {
         networktables_pose_data.push_back(aprilTagInRobotFrame.at<double>(2));
 
         // Publish both camera frame and robot frame
-        apriltags_cuda::add_tag_detection(tag_detection_camera_array_msg, det->id,
-                                          aprilTagInCameraFrame[0],
-                                          aprilTagInCameraFrame[1],
-                                          aprilTagInCameraFrame[2]);
+        apriltags_cuda::add_tag_detection(
+            tag_detection_camera_array_msg, det->id, aprilTagInCameraFrame[0],
+            aprilTagInCameraFrame[1], aprilTagInCameraFrame[2]);
         apriltags_cuda::add_tag_detection(tag_detection_array_msg, det->id,
                                           aprilTagInRobotFrame.at<double>(0),
                                           aprilTagInRobotFrame.at<double>(1),
@@ -481,8 +490,8 @@ class ApriltagsDetector : public rclcpp::Node {
         std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
             .count();
 
-    RCLCPP_DEBUG(this->get_logger(), "Total Time: %ld ms, Det Time: %ld ms",
-                 processing_time, det_processing_time);
+    RCLCPP_INFO(this->get_logger(), "Total Time: %ld ms, Det Time: %ld ms",
+                processing_time, det_processing_time);
   }
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscriber_;
