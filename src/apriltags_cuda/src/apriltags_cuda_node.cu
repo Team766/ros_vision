@@ -124,10 +124,21 @@ class ApriltagsDetector : public rclcpp::Node {
     publish_pose_to_topic_ =
         this->get_parameter("publish_pose_to_topic").as_string();
 
+    // Create subscription with optimized QoS for low latency
+    auto qos = rclcpp::QoS(1)      // Reduce queue depth for lower latency
+                   .best_effort()  // Use best effort for lower latency
+                   .durability_volatile()  // No need to store messages
+                   .deadline(std::chrono::milliseconds(
+                       50));  // Expect messages within 50ms
+
     subscriber_ = this->create_subscription<sensor_msgs::msg::Image>(
-        topic_name, 1,
+        topic_name, qos,
         std::bind(&ApriltagsDetector::imageCallback, this,
                   std::placeholders::_1));
+
+    RCLCPP_INFO(this->get_logger(),
+                "Subscribed to topic: %s with optimized QoS",
+                topic_name.c_str());
   }
 
   /**
