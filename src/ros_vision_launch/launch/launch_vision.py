@@ -2,10 +2,21 @@ import json
 import os
 import re
 import sys
+import logging
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
+from launch.actions import DeclareLaunchArgument, LogInfo
+from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
+
+# Configure global logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger('ros_vision_launch')
 
 BY_ID_PATH = "/dev/v4l/by-id/"
 """Path to the directory containing persistent V4L device symlinks by hardware ID."""
@@ -16,59 +27,78 @@ def scan_for_cameras():
     For each camera, find the /dev/video* device associated with its -index0 symlink,
     and map the serial number to the actual video index (as integer).
     """
+    logger.info("Starting camera scan...")
+    
     if not os.path.exists(BY_ID_PATH):
+        logger.error(f"{BY_ID_PATH} does not exist")
         raise Exception(f"Error: {BY_ID_PATH} does not exist.")
 
+    logger.debug(f"Scanning directory: {BY_ID_PATH}")
     cameras_by_serial_id = {}
-    for entry in os.listdir(BY_ID_PATH):
+    entries = os.listdir(BY_ID_PATH)
+    logger.info(f"Found {len(entries)} entries in {BY_ID_PATH}")
+    
+    for entry in entries:
+        logger.debug(f"Processing entry: {entry}")
+        
         # Only consider symlinks ending in -index0 (main video stream)
         if not entry.endswith("index0"):
+            logger.debug(f"Skipping {entry}: does not end with 'index0'")
             continue
             
         # Check if this is a camera device (broader pattern matching)
         if "Camera" not in entry and "camera" not in entry.lower():
+            logger.debug(f"Skipping {entry}: does not contain 'Camera' or 'camera'")
             continue
+
+        logger.debug(f"Processing camera device: {entry}")
 
         # Extract the serial number from the symlink name
         # First try the original pattern for devices with Camera_(\d+)
         match = re.search(r"Camera_(\d+)", entry)
         if match:
             serial = match.group(1)
+            logger.debug(f"Extracted serial using Camera pattern: {serial}")
         else:
             # Try Arducam pattern: extract the serial from UC### or similar
             arducam_match = re.search(r"USB_Camera_([A-Z0-9]+)", entry)
             if arducam_match:
                 serial = arducam_match.group(1)
+                logger.debug(f"Extracted serial using Arducam pattern: {serial}")
             else:
                 # Generic fallback: extract any alphanumeric identifier before -video-index0
                 generic_match = re.search(r"([A-Z0-9]+)-video-index0$", entry)
                 if generic_match:
                     serial = generic_match.group(1)
+                    logger.debug(f"Extracted serial using generic pattern: {serial}")
                 else:
-                    print(f"Warning: Could not extract serial from {entry}, skipping")
+                    logger.warning(f"Could not extract serial from {entry}, skipping")
                     continue
 
         # Resolve symlink to get the /dev/video* device path
         device_path = os.path.realpath(os.path.join(BY_ID_PATH, entry))
+        logger.debug(f"Resolved device path: {device_path}")
 
         # Robustly extract the number from /dev/videoN
         vid_match = re.search(r"/dev/video(\d+)$", device_path)
         if not vid_match:
-            print(f"Warning: Could not extract video index from {device_path}, skipping")
+            logger.warning(f"Could not extract video index from {device_path}, skipping")
             continue
 
         video_index = int(vid_match.group(1))
         cameras_by_serial_id[serial] = video_index
-        print(f"Found camera: serial={serial}, video_index={video_index}, device={entry}")
+        logger.info(f"Found camera: serial={serial}, video_index={video_index}, device={entry}")
 
     if not cameras_by_serial_id:
-        msg = "\n\nError: No camera devices found in by-id entries!\n\n"
-        msg += "This utility depends on finding the string 'Camera' or 'camera' somewhere in the filename.\n"
-        msg += f"We found these devices: {list(os.listdir(BY_ID_PATH))}\n\n"
-        msg += "To debug, try listing the contents of /dev/v4l/by-id and confirming that Camera is in the device filename.\n"
-        msg += "With an arducam, try resetting the serial number so that the Device Name is 'Camera': https://docs.arducam.com/UVC-Camera/Serial-Number-Tool-Guide/"
-        raise Exception(msg)
+        error_msg = "\n\nError: No camera devices found in by-id entries!\n\n"
+        error_msg += "This utility depends on finding the string 'Camera' or 'camera' somewhere in the filename.\n"
+        error_msg += f"We found these devices: {list(os.listdir(BY_ID_PATH))}\n\n"
+        error_msg += "To debug, try listing the contents of /dev/v4l/by-id and confirming that Camera is in the device filename.\n"
+        error_msg += "With an arducam, try resetting the serial number so that the Device Name is 'Camera': https://docs.arducam.com/UVC-Camera/Serial-Number-Tool-Guide/"
+        logger.error(error_msg)
+        raise Exception(error_msg)
 
+    logger.info(f"Camera scan completed. Found {len(cameras_by_serial_id)} cameras")
     return cameras_by_serial_id
 
 
@@ -85,8 +115,9 @@ def check_format(config_data):
     Raises:
         NotImplementedError: If validation is not yet implemented.
     """
+    logger.debug("Checking configuration format...")
     # TODO: implement this
-    pass
+    logger.warning("Configuration format validation not yet implemented")
 
 
 def get_config_data(cameras_by_serial_id):
@@ -102,22 +133,36 @@ def get_config_data(cameras_by_serial_id):
     Raises:
         Exception: If the configuration file is not found or required keys are missing.
     """
+    logger.info("Loading configuration data...")
+    
     data_path = os.path.join(
         get_package_share_directory("vision_config_data"), "data", "system_config.json"
     )
+    logger.debug(f"Configuration file path: {data_path}")
+    
     if not os.path.exists(data_path):
+        logger.error(f"Configuration file not found at {data_path}")
         raise Exception(f"Error: unable to find system_config.json at {data_path}")
 
+    logger.debug("Reading configuration file...")
     with open(data_path, "r") as f:
         config_data = json.load(f)
 
+    logger.info("Configuration file loaded successfully")
     check_format(config_data)
 
     camera_mounted_positions = config_data["camera_mounted_positions"]
+    logger.debug(f"Available camera positions in config: {list(camera_mounted_positions.keys())}")
+    
     result = {}
     for k, v in cameras_by_serial_id.items():
+        if k not in camera_mounted_positions:
+            logger.error(f"Camera serial {k} not found in configuration")
+            raise Exception(f"Camera serial {k} not found in camera_mounted_positions configuration")
         result[k] = camera_mounted_positions[k]
+        logger.debug(f"Mapped camera {k} to position {camera_mounted_positions[k]}")
 
+    logger.info(f"Configuration mapping completed for {len(result)} cameras")
     return result
 
 
@@ -133,19 +178,36 @@ def generate_launch_description():
     Raises:
         Exception: If camera detection or configuration loading fails.
     """
-    # First we scan for cameras.
-    cameras_by_serial_id = scan_for_cameras()
-    print(f"Found cameras: {cameras_by_serial_id}")
+    logger.info("=== Starting ROS Vision Launch Configuration ===")
+    
+    # Add launch arguments for logging control
+    log_level_arg = DeclareLaunchArgument(
+        'log_level',
+        default_value='info',
+        description='Logging level for all nodes (debug, info, warn, error, fatal)'
+    )
+    
+    try:
+        # First we scan for cameras.
+        cameras_by_serial_id = scan_for_cameras()
+        logger.info(f"Detected cameras: {cameras_by_serial_id}")
 
-    cameras_by_location = get_config_data(cameras_by_serial_id)
-    print(f"Found locations: {cameras_by_location}")
+        cameras_by_location = get_config_data(cameras_by_serial_id)
+        logger.info(f"Camera location mapping: {cameras_by_location}")
 
-    # For each camera found, set up the image processing pipeline.
-    nodes = []
-    for serial_id, camera_idx in cameras_by_serial_id.items():
-        cam_location = cameras_by_location[serial_id]
-        nodes.append(
-            Node(
+        # For each camera found, set up the image processing pipeline.
+        nodes = [log_level_arg]
+        
+        # Add launch info messages
+        nodes.append(LogInfo(msg=f"Launching vision system with {len(cameras_by_serial_id)} cameras"))
+        
+        node_count = 0
+        for serial_id, camera_idx in cameras_by_serial_id.items():
+            cam_location = cameras_by_location[serial_id]
+            logger.info(f"Setting up nodes for camera {serial_id} at location '{cam_location}'")
+            
+            # USB Camera Node
+            camera_node = Node(
                 package="usb_camera",
                 executable="usb_camera_node",
                 name=f"camera_{serial_id}",
@@ -156,13 +218,18 @@ def generate_launch_description():
                         "topic_name": f"cameras/{cam_location}/image_raw",
                     },
                 ],
+                arguments=['--ros-args', '--log-level', LaunchConfiguration('log_level')],
+                output='screen'
             )
-        )
-        nodes.append(
-            Node(
+            nodes.append(camera_node)
+            node_count += 1
+            logger.debug(f"Added USB camera node for serial {serial_id}")
+            
+            # AprilTags Node
+            apriltags_node = Node(
                 package="apriltags_cuda",
                 executable="apriltags_cuda_node",
-                name=f"apriltags",
+                name=f"apriltags_{serial_id}",  # Make name unique per camera
                 parameters=[
                     {
                         "topic_name": f"cameras/{cam_location}/image_raw",
@@ -171,17 +238,31 @@ def generate_launch_description():
                         "publish_pose_to_topic": f"apriltags/{cam_location}/pose",
                     },
                 ],
+                arguments=['--ros-args', '--log-level', LaunchConfiguration('log_level')],
+                output='screen'
             )
-        )
+            nodes.append(apriltags_node)
+            node_count += 1
+            logger.debug(f"Added AprilTags node for serial {serial_id}")
 
-    # Add the foxglove bridge.
-    nodes.append(
-        Node(
+        # Add the foxglove bridge.
+        foxglove_node = Node(
             package="foxglove_bridge",
             executable="foxglove_bridge",
             name="foxglove_bridge",
+            arguments=['--ros-args', '--log-level', LaunchConfiguration('log_level')],
             output="screen",
         )
-    )
+        nodes.append(foxglove_node)
+        node_count += 1
+        logger.info("Added Foxglove bridge node")
 
-    return LaunchDescription(nodes)
+        logger.info(f"Launch configuration completed successfully with {node_count} nodes")
+        logger.info("=== ROS Vision Launch Configuration Complete ===")
+        
+        return LaunchDescription(nodes)
+        
+    except Exception as e:
+        logger.error(f"Failed to generate launch description: {str(e)}")
+        logger.error("=== ROS Vision Launch Configuration Failed ===")
+        raise

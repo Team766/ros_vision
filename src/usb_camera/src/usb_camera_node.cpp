@@ -112,7 +112,7 @@ class CameraPublisher : public rclcpp::Node {
       auto fps_interval = (current_time - last_fps_time_).seconds();
       double fps = 100.0 / fps_interval;
 
-      RCLCPP_INFO(this->get_logger(),
+      RCLCPP_DEBUG(this->get_logger(),
                   "Camera stats - FPS: %.1f, Capture->Publish latency: %.2f ms",
                   fps, publish_latency);
       last_fps_time_ = current_time;

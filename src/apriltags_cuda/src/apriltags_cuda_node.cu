@@ -408,7 +408,7 @@ class ApriltagsDetector : public rclcpp::Node {
     auto latency_duration = current_time - image_capture_time;
     double latency_ms = latency_duration.seconds() * 1000.0;
 
-    RCLCPP_INFO(this->get_logger(),
+    RCLCPP_DEBUG(this->get_logger(),
                 "Image latency: %.2f ms (captured at %.6f, received at %.6f)",
                 latency_ms, image_capture_time.seconds(),
                 current_time.seconds());
@@ -501,7 +501,7 @@ class ApriltagsDetector : public rclcpp::Node {
         std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
             .count();
 
-    RCLCPP_INFO(this->get_logger(), "Total Time: %ld ms, Det Time: %ld ms",
+    RCLCPP_DEBUG(this->get_logger(), "Total Time: %ld ms, Det Time: %ld ms",
                 processing_time, det_processing_time);
   }
 
