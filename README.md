@@ -271,3 +271,19 @@ To collect timing measurements from the apriltags_cuda node:
    python src/vision_utils/timing_report.py apriltags_timing_<timestamp>.csv
    ```
    This will print a summary report, including CDF statistics, and generate plots (line, histogram, and CDF) for each timing metric. The plots will be saved as PNG files in your workspace.
+
+## PDF Report Generation
+
+To generate a PDF timing report from the Markdown file, you need to have [pandoc](https://pandoc.org/) and a LaTeX engine installed. On Linux, you can install them with:
+
+```bash
+sudo apt install pandoc texlive-latex-base texlive-latex-recommended
+```
+
+The timing_report.py utility will automatically attempt to generate a PDF if pandoc is available. If not, you can manually run:
+
+```bash
+pandoc apriltags_timing_<timestamp>_report.md -o apriltags_timing_<timestamp>_report.pdf
+```
+
+This will create a PDF with all tables and embedded images from your timing analysis.
