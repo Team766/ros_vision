@@ -15,6 +15,15 @@ install(
   DESTINATION include
 )
 
+install(
+  PROGRAMS timing_report.py
+  DESTINATION share/${PROJECT_NAME}
+)
+install(
+  FILES requirements.txt
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_export_include_directories(include)
 
 ament_package()
