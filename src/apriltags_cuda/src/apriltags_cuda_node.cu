@@ -1,10 +1,13 @@
 #include <cv_bridge/cv_bridge.h>
 
+#include <chrono>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <geometry_msgs/msg/pose.hpp>
 #include <geometry_msgs/msg/pose_array.hpp>
 #include <image_transport/image_transport.hpp>
+#include <iomanip>
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -64,6 +67,7 @@ class ApriltagsDetector : public rclcpp::Node {
     setup_topics();
     get_network_tables_params();
     setup_apriltags();
+    setup_measurement_params();
   }
 
   /**
@@ -101,6 +105,10 @@ class ApriltagsDetector : public rclcpp::Node {
     teardown_tag_family(&tag_family_, tag_family_name_);
     delete detector_;
     image_pub_queue_->stop();
+    if (csv_file_.is_open()) {
+      csv_file_.flush();
+      csv_file_.close();
+    }
   }
 
  private:
@@ -409,14 +417,13 @@ class ApriltagsDetector : public rclcpp::Node {
     double latency_ms = latency_duration.seconds() * 1000.0;
 
     RCLCPP_DEBUG(this->get_logger(),
-                "Image latency: %.2f ms (captured at %.6f, received at %.6f)",
-                latency_ms, image_capture_time.seconds(),
-                current_time.seconds());
+                 "Image latency: %.2f ms (captured at %.6f, received at %.6f)",
+                 latency_ms, image_capture_time.seconds(),
+                 current_time.seconds());
 
     auto start = std::chrono::high_resolution_clock::now();
-    auto cv_ptr = cv_bridge::toCvCopy(msg, "bgr8");  // Use smart pointer
+    auto cv_ptr = cv_bridge::toCvCopy(msg, "bgr8");
     cv::Mat bgr_img = cv_ptr->image;
-
     cv::cvtColor(bgr_img, yuyv_img, cv::COLOR_BGR2YUV_YUYV);
 
     auto detstart = std::chrono::high_resolution_clock::now();
@@ -481,28 +488,99 @@ class ApriltagsDetector : public rclcpp::Node {
       detector_->ReinitializeDetections();
     }
 
-    // Send the pose data to the network tables.
+    auto nt_start = std::chrono::high_resolution_clock::now();
     tag_sender_->sendValue(networktables_pose_data);
+    auto nt_end = std::chrono::high_resolution_clock::now();
 
-    // Publish the marker array to the ROS topic
+    auto pub_pose_start = std::chrono::high_resolution_clock::now();
     tag_detection_pub_->publish(tag_detection_array_msg);
-    tag_detection_camera_pub_->publish(tag_detection_camera_array_msg);
+    auto pub_pose_end = std::chrono::high_resolution_clock::now();
 
-    // Publish the image message
+    auto pub_camera_pose_start = std::chrono::high_resolution_clock::now();
+    tag_detection_camera_pub_->publish(tag_detection_camera_array_msg);
+    auto pub_camera_pose_end = std::chrono::high_resolution_clock::now();
+
+    auto pub_image_start = std::chrono::high_resolution_clock::now();
     auto outgoing_msg =
         cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgr_img)
             .toImageMsg();
     outgoing_msg->header.stamp = image_capture_time;
     outgoing_msg->header.frame_id = "apriltag_detections";
     image_pub_queue_->enqueue(outgoing_msg);
+    auto pub_image_end = std::chrono::high_resolution_clock::now();
 
     auto end = std::chrono::high_resolution_clock::now();
     auto processing_time =
         std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
             .count();
 
+    if (measurement_mode_ && csv_file_.is_open()) {
+      csv_file_ << latency_duration.nanoseconds() / 1000 << ","
+                << std::chrono::duration_cast<std::chrono::microseconds>(
+                       detend - detstart)
+                       .count()
+                << ","
+                << std::chrono::duration_cast<std::chrono::microseconds>(
+                       pub_pose_end - pub_pose_start)
+                       .count()
+                << ","
+                << std::chrono::duration_cast<std::chrono::microseconds>(
+                       pub_camera_pose_end - pub_camera_pose_start)
+                       .count()
+                << ","
+                << std::chrono::duration_cast<std::chrono::microseconds>(
+                       pub_image_end - pub_image_start)
+                       .count()
+                << ","
+                << std::chrono::duration_cast<std::chrono::microseconds>(
+                       nt_end - nt_start)
+                       .count()
+                << ","
+                << std::chrono::duration_cast<std::chrono::microseconds>(end -
+                                                                         start)
+                       .count()
+                << "\n";
+      csv_file_.flush();
+    }
+
     RCLCPP_DEBUG(this->get_logger(), "Total Time: %ld ms, Det Time: %ld ms",
-                processing_time, det_processing_time);
+                 processing_time, det_processing_time);
+  }
+
+  void setup_measurement_params() {
+    this->declare_parameter<bool>("measurement_mode", false);
+    // Generate default filename: apriltags_timing_YYYYMMDD_hhmmss.csv
+    this->declare_parameter<std::string>("timing_csv_path", "");
+    measurement_mode_ = this->get_parameter("measurement_mode").as_bool();
+    csv_path_ = this->get_parameter("timing_csv_path").as_string();
+    if (csv_path_.empty()) {
+      auto now = std::chrono::system_clock::now();
+      std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+      std::tm tm_now;
+      localtime_r(&now_c, &tm_now);
+      std::ostringstream oss;
+      oss << "apriltags_timing_" << std::put_time(&tm_now, "%Y%m%d_%H%M%S")
+          << ".csv";
+      csv_path_ = oss.str();
+    }
+    RCLCPP_INFO(this->get_logger(), "Measurement mode: %s",
+                measurement_mode_ ? "ENABLED" : "DISABLED");
+    RCLCPP_INFO(this->get_logger(), "Timing CSV path: '%s'", csv_path_.c_str());
+    if (measurement_mode_ && !csv_path_.empty()) {
+      csv_file_.open(csv_path_, std::ios::out);
+      if (csv_file_.is_open()) {
+        RCLCPP_INFO(this->get_logger(),
+                    "Timing CSV file successfully opened: '%s'",
+                    csv_path_.c_str());
+        csv_file_
+            << "latency_us,det_time_us,publish_pose_us,publish_camera_pose_us,"
+               "publish_image_us,networktables_us,processing_time_us\n";
+        csv_file_.flush();
+      } else {
+        RCLCPP_ERROR(this->get_logger(), "Failed to open timing CSV file: '%s'",
+                     csv_path_.c_str());
+      }
+    }
   }
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscriber_;
@@ -535,6 +613,11 @@ class ApriltagsDetector : public rclcpp::Node {
   // Extrinsic parameters
   cv::Mat extrinsic_rotation_;  ///< 3x3 rotation matrix from extrinsics
   cv::Mat extrinsic_offset_;    ///< 3x1 offset vector from extrinsics
+
+  // Measurement mode
+  bool measurement_mode_ = false;
+  std::string csv_path_;
+  std::ofstream csv_file_;
 };
 
 int main(int argc, char *argv[]) {

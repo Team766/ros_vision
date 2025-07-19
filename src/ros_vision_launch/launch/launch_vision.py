@@ -186,6 +186,16 @@ def generate_launch_description():
         default_value='info',
         description='Logging level for all nodes (debug, info, warn, error, fatal)'
     )
+    measurement_mode_arg = DeclareLaunchArgument(
+        'measurement_mode',
+        default_value='false',
+        description='Enable timing measurement and CSV logging for apriltags node.'
+    )
+    timing_csv_path_arg = DeclareLaunchArgument(
+        'timing_csv_path',
+        default_value='',
+        description='Path to timing CSV file for apriltags node.'
+    )
     
     try:
         # First we scan for cameras.
@@ -196,7 +206,7 @@ def generate_launch_description():
         logger.info(f"Camera location mapping: {cameras_by_location}")
 
         # For each camera found, set up the image processing pipeline.
-        nodes = [log_level_arg]
+        nodes = [log_level_arg, measurement_mode_arg, timing_csv_path_arg]
         
         # Add launch info messages
         nodes.append(LogInfo(msg=f"Launching vision system with {len(cameras_by_serial_id)} cameras"))
@@ -229,15 +239,15 @@ def generate_launch_description():
             apriltags_node = Node(
                 package="apriltags_cuda",
                 executable="apriltags_cuda_node",
-                name=f"apriltags_{serial_id}",  # Make name unique per camera
-                parameters=[
-                    {
-                        "topic_name": f"cameras/{cam_location}/image_raw",
-                        "camera_serial": serial_id,
-                        "publish_images_to_topic": f"apriltags/{cam_location}/images",
-                        "publish_pose_to_topic": f"apriltags/{cam_location}/pose",
-                    },
-                ],
+                name=f"apriltags_{serial_id}",
+                parameters=[{
+                    "topic_name": f"cameras/{cam_location}/image_raw",
+                    "camera_serial": serial_id,
+                    "publish_images_to_topic": f"apriltags/{cam_location}/images",
+                    "publish_pose_to_topic": f"apriltags/{cam_location}/pose",
+                    "measurement_mode": LaunchConfiguration('measurement_mode'),
+                    "timing_csv_path": LaunchConfiguration('timing_csv_path'),
+                }],
                 arguments=['--ros-args', '--log-level', LaunchConfiguration('log_level')],
                 output='screen'
             )
