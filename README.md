@@ -243,3 +243,31 @@ info: Listening on http://cpadwick-GS60-6QE:9099/
 ```
 
 What is happening is that the seasocks viewer node is reading messages off of the `apriltags/images` topic, and is showing it on the web page at http://localhost:9099 . Navigate to the web page and verify that you can see the camera images with an apriltag detection shown on the image.
+
+# Running Timing Tests
+
+## Enable Measurement Mode and Collect Timing Data
+
+To collect timing measurements from the apriltags_cuda node:
+
+1. Launch the vision system with measurement mode enabled:
+   ```bash
+   source install/setup.bash
+   ros2 launch ros_vision_launch launch_vision.py measurement_mode:=true
+   ```
+   This will create a timing CSV file (e.g., `apriltags_timing_<timestamp>.csv`) in your workspace.
+
+2. Let the system run for as long as you want to collect timing data, then stop it with `Ctrl+C`.
+
+## Generate Timing Reports and Plots
+
+1. Install Python dependencies for the timing report utility:
+   ```bash
+   pip install -r src/vision_utils/requirements.txt
+   ```
+
+2. Run the timing report utility on your CSV file:
+   ```bash
+   python src/vision_utils/timing_report.py apriltags_timing_<timestamp>.csv
+   ```
+   This will print a summary report, including CDF statistics, and generate plots (line, histogram, and CDF) for each timing metric. The plots will be saved as PNG files in your workspace.
