@@ -15,7 +15,8 @@ find_package(image_transport REQUIRED)
 find_package(vision_utils)
 find_package(vision_deps)
 
-add_executable(usb_camera_node src/usb_camera_node.cpp)
+add_executable(usb_camera_node src/usb_camera_node.cpp src/camera_publisher.cpp)
+target_include_directories(usb_camera_node PRIVATE include)
 ament_target_dependencies(usb_camera_node rclcpp sensor_msgs cv_bridge image_transport OpenCV vision_utils vision_deps)
 
 add_executable(image_processor_node src/image_processor_node.cpp)
@@ -25,6 +26,9 @@ install(TARGETS
   usb_camera_node
   image_processor_node
   DESTINATION lib/${PROJECT_NAME})
+
+install(DIRECTORY include/
+  DESTINATION include/)
 
 
 ament_package()
