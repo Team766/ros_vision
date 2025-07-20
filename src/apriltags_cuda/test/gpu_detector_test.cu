@@ -1,10 +1,12 @@
 // gpu_detector_test.cpp
 #include <glog/logging.h>
 #include <gtest/gtest.h>
+#include <iostream>
 
 #include "apriltags_cuda/apriltag_gpu.h"
 #include "apriltags_cuda/apriltag_utils.h"
 #include "opencv2/opencv.hpp"
+#include "ament_index_cpp/get_package_share_directory.hpp"
 
 extern "C" {
 #include "apriltag.h"
@@ -24,12 +26,24 @@ protected:
   frc971::apriltag::DistCoeffs dist;
 
   void SetUp() override {
-    // Read in the image
-    bgr_img = cv::imread("../data/colorimage.jpg", cv::IMREAD_COLOR);
+    // Get the proper package share directory for test data
+    std::string package_share_dir;
+    try {
+      package_share_dir = ament_index_cpp::get_package_share_directory("apriltags_cuda");
+    } catch (const std::exception& e) {
+      FAIL() << "Failed to find apriltags_cuda package share directory: " << e.what();
+    }
+    
+    std::string test_data_dir = package_share_dir + "/test/data/";
+    
+    // Load test images using proper package paths
+    bgr_img = cv::imread(test_data_dir + "colorimage.jpg", cv::IMREAD_COLOR);
+    bgr_img_notags = cv::imread(test_data_dir + "colorimage_notags.jpg", cv::IMREAD_COLOR);
+    
+    ASSERT_FALSE(bgr_img.empty()) << "Failed to load test image: " << test_data_dir << "colorimage.jpg";
+    ASSERT_FALSE(bgr_img_notags.empty()) << "Failed to load test image: " << test_data_dir << "colorimage_notags.jpg";
+    
     cvtColor(bgr_img, yuyv_img, COLOR_BGR2YUV_YUYV);
-
-    bgr_img_notags =
-        cv::imread("../data/colorimage_notags.jpg", cv::IMREAD_COLOR);
     cvtColor(bgr_img_notags, yuyv_img_notags, COLOR_BGR2YUV_YUYV);
 
     // Setup Tag Family and tag detector
