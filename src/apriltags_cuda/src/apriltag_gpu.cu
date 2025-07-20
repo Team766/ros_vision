@@ -12,14 +12,14 @@
 #include <cub/iterator/transform_input_iterator.cuh>
 #include <vector>
 
-#include "apriltag_gpu.h"
+#include "apriltags_cuda/apriltag_gpu.h"
 #include "g2d.h"
 #include "glog/logging.h"
 
 //#include "aos/time/time.h"
-#include "labeling_allegretti_2019_BKE.h"
-#include "threshold.h"
-#include "transform_output_iterator.h"
+#include "apriltags_cuda/labeling_allegretti_2019_BKE.h"
+#include "apriltags_cuda/threshold.h"
+#include "apriltags_cuda/transform_output_iterator.h"
 
 namespace frc971::apriltag {
 namespace {

@@ -71,11 +71,15 @@ set(CUDA_LIB_SOURCES
     src/points.cu
     src/threshold.cu
     src/apriltag_utils.cu
+    src/apriltags_cuda_detector.cu
     src/DoubleArraySender.cpp
     src/NetworkTablesUtil.cpp)
 
 # Add a library with the above source files
 add_library(apriltags_cuda_core SHARED ${CUDA_LIB_SOURCES})
+
+# Add dependencies for the core library since it now includes ROS-dependent code
+ament_target_dependencies(apriltags_cuda_core rclcpp sensor_msgs cv_bridge image_transport vision_deps vision_utils rosidl_default_runtime)
 
 #add_dependencies(apriltags_cuda_core vision_deps_external vision_utils)
 

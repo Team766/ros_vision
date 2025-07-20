@@ -7,9 +7,9 @@
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-#include "gpu_image.h"
-#include "line_fit_filter.h"
-#include "points.h"
+#include "apriltags_cuda/gpu_image.h"
+#include "apriltags_cuda/line_fit_filter.h"
+#include "apriltags_cuda/points.h"
 
 namespace frc971::apriltag {
 

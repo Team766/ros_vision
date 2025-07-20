@@ -2,8 +2,8 @@
 #include <cub/warp/warp_merge_sort.cuh>
 #include <iomanip>
 
-#include "cuda_frc971.h"
-#include "line_fit_filter.h"
+#include "apriltags_cuda/cuda_frc971.h"
+#include "apriltags_cuda/line_fit_filter.h"
 
 // #define DEBUG_BLOB_NUMBER 401
 

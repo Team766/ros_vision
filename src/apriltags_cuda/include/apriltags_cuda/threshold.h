@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "cuda_frc971.h"
+#include "apriltags_cuda/cuda_frc971.h"
 
 namespace frc971::apriltag {
 

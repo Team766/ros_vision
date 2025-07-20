@@ -4,7 +4,7 @@
 #include <cub/iterator/transform_input_iterator.cuh>
 #include <cuda/std/tuple>
 
-#include "cuda_frc971.h"
+#include "apriltags_cuda/cuda_frc971.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
