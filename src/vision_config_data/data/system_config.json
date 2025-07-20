@@ -1,8 +1,53 @@
 {
     "camera_mounted_positions": {
-        "766": "center_front",
-        "UC762": "center_front",
-        "199": "center_front"
+        "766": {
+            "location": "center_front",
+            "format": "MJPG",
+            "height": 800,
+            "width": 1280,
+            "frame_rate": 100,
+            "api_preference": "V4L2"
+        },
+        "UC762": {
+            "location": "center_front",
+            "format": "MJPG",
+            "height": 800,
+            "width": 1280,
+            "frame_rate": 100,
+            "api_preference": "V4L2"
+        },
+        "199": {
+            "location": "center_front",
+            "format": "MJPG",
+            "height": 800,
+            "width": 1280,
+            "frame_rate": 100,
+            "api_preference": "V4L2"
+        },
+        "cam11": {
+            "location": "center_front",
+            "format": "YUYV",
+            "height": 480,
+            "width": 640,
+            "frame_rate": 30,
+            "api_preference": "V4L2"
+        },
+        "cam12": {
+            "location": "left_side",
+            "format": "MJPG",
+            "height": 720,
+            "width": 1280,
+            "frame_rate": 60,
+            "api_preference": "V4L2"
+        },
+        "test_camera": {
+            "location": "center_front",
+            "format": "MJPG",
+            "height": 480,
+            "width": 640,
+            "frame_rate": 30,
+            "api_preference": "ANY"
+        }
     },
     "extrinsics": {
         "center_front": {
@@ -27,6 +72,30 @@
                 0.0,
                 0.0,
                 0.0
+            ]
+        },
+        "left_side": {
+            "rotation": [
+                [
+                    0.707,
+                    0.0,
+                    0.707
+                ],
+                [
+                    -0.707,
+                    0.0,
+                    0.707
+                ],
+                [
+                    0.0,
+                    -1.0,
+                    0.0
+                ]
+            ],
+            "offset": [
+                -0.2,
+                0.0,
+                0.1
             ]
         }
     },

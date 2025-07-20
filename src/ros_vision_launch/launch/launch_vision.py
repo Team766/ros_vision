@@ -128,7 +128,7 @@ def get_config_data(cameras_by_serial_id):
         cameras_by_serial_id (dict): Mapping of camera serials (str) to video indices (int).
 
     Returns:
-        dict: Mapping of camera serial numbers (str) to their mounted positions from config.
+        dict: Mapping of camera serial numbers (str) to their camera locations from config.
 
     Raises:
         Exception: If the configuration file is not found or required keys are missing.
@@ -159,8 +159,20 @@ def get_config_data(cameras_by_serial_id):
         if k not in camera_mounted_positions:
             logger.error(f"Camera serial {k} not found in configuration")
             raise Exception(f"Camera serial {k} not found in camera_mounted_positions configuration")
-        result[k] = camera_mounted_positions[k]
-        logger.debug(f"Mapped camera {k} to position {camera_mounted_positions[k]}")
+        
+        # Extract the location from the camera config object
+        camera_config = camera_mounted_positions[k]
+        if isinstance(camera_config, dict) and "location" in camera_config:
+            # New format: camera config is an object with location field
+            result[k] = camera_config["location"]
+            logger.debug(f"Mapped camera {k} to location {camera_config['location']} (new format)")
+        elif isinstance(camera_config, str):
+            # Old format: camera config is just a location string (backward compatibility)
+            result[k] = camera_config
+            logger.debug(f"Mapped camera {k} to location {camera_config} (legacy format)")
+        else:
+            logger.error(f"Invalid camera config format for serial {k}: {camera_config}")
+            raise Exception(f"Invalid camera config format for serial {k}: expected dict with 'location' field or string")
 
     logger.info(f"Configuration mapping completed for {len(result)} cameras")
     return result

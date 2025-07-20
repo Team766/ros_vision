@@ -25,6 +25,7 @@
 #include <sensor_msgs/msg/image.hpp>
 
 #include "vision_utils/publisher_queue.hpp"
+#include "vision_utils/config_loader.hpp"
 #include "usb_camera/camera_interface.hpp"
 
 class CameraPublisher : public rclcpp::Node
@@ -43,6 +44,7 @@ public:
 private:
   void timerCallback();
   void initializeCamera(int camera_idx);
+  void applyCameraConfig(const vision_utils::CameraConfig& config);
 
   std::unique_ptr<CameraInterface> camera_;
   rclcpp::TimerBase::SharedPtr timer_;
@@ -55,6 +57,7 @@ private:
 
   std::string topic_name_;
   std::string camera_serial_;
+  vision_utils::CameraConfig camera_config_;
 
   // Performance monitoring
   int frame_count_;

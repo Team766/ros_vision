@@ -120,8 +120,21 @@ void ApriltagsDetector::setup_apriltags() {
   tag_sender_ = std::make_shared<DoubleArraySender>(
       camera_serial_, table_address_, table_name_);
 
-  int frame_width = 1280;
-  int frame_height = 800;
+  // Load camera configuration to get frame dimensions
+  auto camera_config = vision_utils::ConfigLoader::getCameraConfig(camera_serial_);
+  
+  if (!camera_config.has_value()) {
+    RCLCPP_ERROR(this->get_logger(),
+                 "Could not load camera config for serial %s - configuration is required",
+                 camera_serial_.c_str());
+    throw std::runtime_error("Failed to load camera configuration for serial: " + camera_serial_);
+  }
+  
+  int frame_width = camera_config->width;
+  int frame_height = camera_config->height;
+  RCLCPP_INFO(this->get_logger(),
+              "Using camera config dimensions: %dx%d for serial %s",
+              frame_width, frame_height, camera_serial_.c_str());
 
   auto start = std::chrono::high_resolution_clock::now();
   detector_ = new frc971::apriltag::GpuDetector(frame_width, frame_height,
@@ -180,8 +193,19 @@ void ApriltagsDetector::get_extrinsic_params() {
 
   std::string camera_position = "N/A";
   if (data["camera_mounted_positions"].contains(camera_serial_)) {
-    camera_position =
-        data["camera_mounted_positions"][camera_serial_].get<std::string>();
+    auto camera_config = data["camera_mounted_positions"][camera_serial_];
+    if (camera_config.is_string()) {
+      // Legacy format: camera config is just a location string
+      camera_position = camera_config.get<std::string>();
+    } else if (camera_config.is_object() && camera_config.contains("location")) {
+      // New format: camera config is an object with location field
+      camera_position = camera_config["location"].get<std::string>();
+    } else {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Invalid camera config format for serial %s: expected string or object with 'location' field",
+                   camera_serial_.c_str());
+      return;
+    }
   } else {
     RCLCPP_ERROR(
         this->get_logger(),

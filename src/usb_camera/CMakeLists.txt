@@ -12,8 +12,9 @@ find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(image_transport REQUIRED)
-find_package(vision_utils)
+find_package(vision_utils REQUIRED)
 find_package(vision_deps)
+find_package(vision_config_data REQUIRED)
 
 # Add library for camera implementations
 add_library(usb_camera_lib 
@@ -21,7 +22,7 @@ add_library(usb_camera_lib
   src/opencv_camera.cpp
 )
 target_include_directories(usb_camera_lib PUBLIC include)
-ament_target_dependencies(usb_camera_lib rclcpp sensor_msgs cv_bridge image_transport OpenCV vision_utils vision_deps)
+ament_target_dependencies(usb_camera_lib rclcpp sensor_msgs cv_bridge image_transport OpenCV vision_utils vision_deps vision_config_data)
 
 add_executable(usb_camera_node src/usb_camera_node.cpp)
 target_link_libraries(usb_camera_node usb_camera_lib)

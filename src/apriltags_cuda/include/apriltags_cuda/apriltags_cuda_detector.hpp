@@ -26,6 +26,7 @@
 #include "apriltags_cuda/msg/tag_detection_array.hpp"
 #include "apriltags_cuda/tag_detection_msg_helpers.hpp"
 #include "vision_utils/publisher_queue.hpp"
+#include "vision_utils/config_loader.hpp"
 
 extern "C" {
 #include "apriltag.h"
