@@ -290,46 +290,15 @@ void ApriltagsDetector::get_extrinsic_params() {
 }
 
 void ApriltagsDetector::get_network_tables_params() {
-  // Locate the system config file.
-  fs::path config_path =
-      ament_index_cpp::get_package_share_directory("vision_config_data");
-  fs::path config_file = config_path / "data" / "system_config.json";
-
-  if (!std::filesystem::exists(config_file)) {
-    RCLCPP_ERROR(this->get_logger(),
-                 "Unable to find system config file at path: %s",
-                 config_file.c_str());
-  }
-
-  // Load the parameters from the file.
-  std::ifstream f(config_file);
-  json data = json::parse(f);
-
-  if (!data.contains("network_tables_config")) {
-    RCLCPP_ERROR(
-        this->get_logger(),
-        "Unable to find key \"network_tables_config\" in system config file");
-  }
-  if (!data["network_tables_config"].contains("table_address")) {
-    RCLCPP_ERROR(this->get_logger(),
-                 "Unable to find key \"table_address\" in "
-                 "\"network_tables_config\" record in system config file");
-  }
-  if (!data["network_tables_config"].contains("table_name")) {
-    RCLCPP_ERROR(this->get_logger(),
-                 "Unable to find key \"table_name\" in "
-                 "\"network_tables_config\" record in system config file");
-  }
-
-  data["network_tables_config"].at("table_address").get_to(table_address_);
-  data["network_tables_config"].at("table_name").get_to(table_name_);
+  auto network_config = vision_utils::ConfigLoader::getNetworkTablesConfig();
+  
+  table_address_ = network_config.table_address;
+  table_name_ = network_config.table_name;
 
   RCLCPP_INFO(
       this->get_logger(),
       "Loaded network tables parameters table_address: %s, table_name: %s",
       table_address_.c_str(), table_name_.c_str());
-
-  return;
 }
 
 void ApriltagsDetector::get_camera_calibration_data(frc971::apriltag::CameraMatrix *cam,
