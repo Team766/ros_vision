@@ -18,6 +18,11 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Enable testing by default
+if(NOT DEFINED BUILD_TESTING)
+    set(BUILD_TESTING ON)
+endif()
+
 if(CMAKE_BUILD_TYPE MATCHES "Debug")
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --std c++20 -g -gdwarf-4 -O0")
 else()
@@ -170,6 +175,43 @@ if(BUILD_TESTING)
   # Set working directory for test to find data files
   set_tests_properties(gpu_detector_test PROPERTIES
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  
+  # Add ApriltagsDetector transformation integration test
+  ament_add_gtest(apriltag_detector_transform_test test/apriltag_detector_transform_test.cu)
+  target_include_directories(apriltag_detector_transform_test PRIVATE 
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/include/opencv4
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/ntcore
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/wpiutil
+    ${VISION_DEPS_INSTALL_DIR}/json-install/include/
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag/common
+  )
+  ament_target_dependencies(apriltag_detector_transform_test 
+    rclcpp 
+    sensor_msgs 
+    cv_bridge 
+    image_transport 
+    vision_utils 
+    rosidl_default_runtime
+    ament_index_cpp
+  )
+  target_link_libraries(apriltag_detector_transform_test
+    apriltags_cuda_core
+    apriltags_cuda__rosidl_typesupport_cpp
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib/libapriltag.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_core.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgproc.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libntcore.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libwpiutil.so
+    glog::glog
+  )
+  set_target_properties(apriltag_detector_transform_test PROPERTIES
+    BUILD_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"
+    INSTALL_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"
+    INSTALL_RPATH_USE_LINK_PATH TRUE
   )
 endif()
 

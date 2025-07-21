@@ -7,11 +7,31 @@
 ApriltagsDetector::ApriltagsDetector()
     : Node("apriltags_detector"),
       tag_family_(nullptr),
-      tag_detector_(nullptr) {
+      tag_detector_(nullptr),
+      detector_(nullptr) {
   setup_topics();
   get_network_tables_params();
   setup_apriltags();
   setup_measurement_params();
+}
+
+/**
+ * @brief Protected constructor for testing that bypasses full initialization
+ */
+ApriltagsDetector::ApriltagsDetector(bool bypass_init)
+    : Node("apriltags_detector"),
+      tag_family_(nullptr),
+      tag_detector_(nullptr),
+      detector_(nullptr) {
+  if (!bypass_init) {
+    setup_topics();
+    get_network_tables_params();
+    setup_apriltags();
+    setup_measurement_params();
+  }
+  // For testing, just initialize extrinsics to identity
+  extrinsic_rotation_ = cv::Mat::eye(3, 3, CV_64F);
+  extrinsic_offset_ = cv::Mat::zeros(3, 1, CV_64F);
 }
 
 /**
@@ -45,10 +65,18 @@ void ApriltagsDetector::init() {
  * @brief Destructor. Cleans up detector and stops publisher queue.
  */
 ApriltagsDetector::~ApriltagsDetector() {
-  apriltag_detector_destroy(tag_detector_);
-  teardown_tag_family(&tag_family_, tag_family_name_);
-  delete detector_;
-  image_pub_queue_->stop();
+  if (tag_detector_) {
+    apriltag_detector_destroy(tag_detector_);
+  }
+  if (tag_family_) {
+    teardown_tag_family(&tag_family_, tag_family_name_);
+  }
+  if (detector_) {
+    delete detector_;
+  }
+  if (image_pub_queue_) {
+    image_pub_queue_->stop();
+  }
   if (csv_file_.is_open()) {
     csv_file_.flush();
     csv_file_.close();
@@ -426,10 +454,7 @@ void ApriltagsDetector::imageCallback(const sensor_msgs::msg::Image::SharedPtr m
           "Tag id: %d, x: %.6f, y: %.6f, z: %.6f, err: %.6f in camera frame",
           det->id, pose.t->data[0], pose.t->data[1], pose.t->data[2], err);
 
-      cv::Mat aprilTagInCameraFrameAsMat = cv::Mat(aprilTagInCameraFrame);
-      cv::Mat aprilTagInRobotFrame =
-          extrinsic_rotation_ * aprilTagInCameraFrameAsMat +
-          extrinsic_offset_;
+      cv::Mat aprilTagInRobotFrame = transformCameraToRobot(aprilTagInCameraFrame);
 
       RCLCPP_DEBUG(this->get_logger(),
                    "Tag id: %d, x: %.6f, y: %.6f, z: %.6f in robot frame",
@@ -548,4 +573,9 @@ void ApriltagsDetector::setup_measurement_params() {
                    csv_path_.c_str());
     }
   }
+}
+
+cv::Mat ApriltagsDetector::transformCameraToRobot(const cv::Vec3d& camera_point) const {
+  cv::Mat camera_point_mat = cv::Mat(camera_point);
+  return extrinsic_rotation_ * camera_point_mat + extrinsic_offset_;
 }

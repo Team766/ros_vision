@@ -70,12 +70,32 @@ class ApriltagsDetector : public rclcpp::Node {
    *
    * This must be called after the node is fully constructed.
    */
-  void init();
+  virtual void init();
 
   /**
    * @brief Destructor. Cleans up detector and stops publisher queue.
    */
   ~ApriltagsDetector();
+
+ protected:
+  /**
+   * @brief Protected constructor for testing that can bypass initialization
+   */
+  ApriltagsDetector(bool bypass_init);
+  // Extrinsic parameters (protected for testing)
+  cv::Mat extrinsic_rotation_;  ///< 3x3 rotation matrix from extrinsics
+  cv::Mat extrinsic_offset_;    ///< 3x1 offset vector from extrinsics
+
+  /**
+   * @brief Transform a 3D point from camera frame to robot frame using extrinsic parameters.
+   * 
+   * This method applies the extrinsic rotation and translation to transform coordinates
+   * from the camera's coordinate system to the robot's coordinate system.
+   * 
+   * @param camera_point 3D point in camera coordinate system as cv::Vec3d
+   * @return 3D point in robot coordinate system as cv::Mat (3x1)
+   */
+  cv::Mat transformCameraToRobot(const cv::Vec3d& camera_point) const;
 
  private:
   /**
@@ -160,10 +180,6 @@ class ApriltagsDetector : public rclcpp::Node {
   apriltag_detection_info_t info_;
   frc971::apriltag::GpuDetector *detector_;
   const char *tag_family_name_ = "tag36h11";
-
-  // Extrinsic parameters
-  cv::Mat extrinsic_rotation_;  ///< 3x3 rotation matrix from extrinsics
-  cv::Mat extrinsic_offset_;    ///< 3x1 offset vector from extrinsics
 
   // Measurement mode
   bool measurement_mode_ = false;
