@@ -213,6 +213,43 @@ if(BUILD_TESTING)
     INSTALL_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"
     INSTALL_RPATH_USE_LINK_PATH TRUE
   )
+
+  # Add detection sorting test
+  ament_add_gtest(detection_sorting_test test/detection_sorting_test.cu)
+  target_include_directories(detection_sorting_test PRIVATE 
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/include/opencv4
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/ntcore
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/wpiutil
+    ${VISION_DEPS_INSTALL_DIR}/json-install/include/
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag/common
+  )
+  ament_target_dependencies(detection_sorting_test 
+    rclcpp 
+    sensor_msgs 
+    cv_bridge 
+    image_transport 
+    vision_utils 
+    rosidl_default_runtime
+    ament_index_cpp
+  )
+  target_link_libraries(detection_sorting_test
+    apriltags_cuda_core
+    apriltags_cuda__rosidl_typesupport_cpp
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib/libapriltag.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_core.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgproc.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libntcore.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libwpiutil.so
+    glog::glog
+  )
+  set_target_properties(detection_sorting_test PROPERTIES
+    BUILD_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"
+    INSTALL_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"
+    INSTALL_RPATH_USE_LINK_PATH TRUE
+  )
 endif()
 
 ament_export_dependencies(rosidl_default_runtime)

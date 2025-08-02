@@ -405,12 +405,17 @@ void ApriltagsDetector::imageCallback(const sensor_msgs::msg::Image::SharedPtr m
   apriltags_cuda::msg::TagDetectionArray tag_detection_camera_array_msg;
   tag_detection_array_msg.detections.clear();
   tag_detection_camera_array_msg.detections.clear();
+  
   if (zarray_size(detections) > 0) {
+    // First pass: collect all detections and calculate distances
+    std::vector<DetectionData> detection_data;
+    detection_data.reserve(zarray_size(detections));
+    
     for (int i = 0; i < zarray_size(detections); i++) {
       apriltag_detection_t *det;
       zarray_get(const_cast<zarray_t *>(detections), i, &det);
 
-      // Setup the detection info struct for use down below.
+      // Setup the detection info struct for pose estimation
       info_.det = det;
 
       apriltag_pose_t pose;
@@ -418,33 +423,58 @@ void ApriltagsDetector::imageCallback(const sensor_msgs::msg::Image::SharedPtr m
       cv::Vec3d aprilTagInCameraFrame(pose.t->data[0], pose.t->data[1],
                                       pose.t->data[2]);
 
-      RCLCPP_DEBUG(
-          this->get_logger(),
-          "Tag id: %d, x: %.6f, y: %.6f, z: %.6f, err: %.6f in camera frame",
-          det->id, pose.t->data[0], pose.t->data[1], pose.t->data[2], err);
-
       cv::Mat aprilTagInRobotFrame = transformCameraToRobot(aprilTagInCameraFrame);
 
+      // Calculate Euclidean distance from camera origin (use camera frame for consistency)
+      double distance = std::sqrt(aprilTagInCameraFrame[0] * aprilTagInCameraFrame[0] +
+                                  aprilTagInCameraFrame[1] * aprilTagInCameraFrame[1] +
+                                  aprilTagInCameraFrame[2] * aprilTagInCameraFrame[2]);
+
+      // Store detection data
+      detection_data.push_back({
+        det,
+        aprilTagInCameraFrame,
+        aprilTagInRobotFrame.clone(),
+        distance,
+        err
+      });
+
+      RCLCPP_DEBUG(
+          this->get_logger(),
+          "Tag id: %d, distance: %.6f, x: %.6f, y: %.6f, z: %.6f, err: %.6f in camera frame",
+          det->id, distance, pose.t->data[0], pose.t->data[1], pose.t->data[2], err);
+    }
+
+    // Sort detections by distance (closest first)
+    std::sort(detection_data.begin(), detection_data.end(),
+              [](const DetectionData& a, const DetectionData& b) {
+                return a.distance < b.distance;
+              });
+
+    // Second pass: process sorted detections
+    for (const auto& data : detection_data) {
       RCLCPP_DEBUG(this->get_logger(),
-                   "Tag id: %d, x: %.6f, y: %.6f, z: %.6f in robot frame",
-                   det->id, aprilTagInRobotFrame.at<double>(0),
-                   aprilTagInRobotFrame.at<double>(1),
-                   aprilTagInRobotFrame.at<double>(2));
+                   "Processing sorted tag id: %d, distance: %.6f, x: %.6f, y: %.6f, z: %.6f in robot frame",
+                   data.det->id, data.distance,
+                   data.robot_position.at<double>(0),
+                   data.robot_position.at<double>(1),
+                   data.robot_position.at<double>(2));
 
+      // Add to network tables data (sorted by distance)
       networktables_pose_data.push_back(image_capture_time.seconds());
-      networktables_pose_data.push_back(det->id * 1.0);
-      networktables_pose_data.push_back(aprilTagInRobotFrame.at<double>(0));
-      networktables_pose_data.push_back(aprilTagInRobotFrame.at<double>(1));
-      networktables_pose_data.push_back(aprilTagInRobotFrame.at<double>(2));
+      networktables_pose_data.push_back(data.det->id * 1.0);
+      networktables_pose_data.push_back(data.robot_position.at<double>(0));
+      networktables_pose_data.push_back(data.robot_position.at<double>(1));
+      networktables_pose_data.push_back(data.robot_position.at<double>(2));
 
-      // Publish both camera frame and robot frame
+      // Publish both camera frame and robot frame (sorted by distance)
       apriltags_cuda::add_tag_detection(
-          tag_detection_camera_array_msg, det->id, aprilTagInCameraFrame[0],
-          aprilTagInCameraFrame[1], aprilTagInCameraFrame[2]);
-      apriltags_cuda::add_tag_detection(tag_detection_array_msg, det->id,
-                                        aprilTagInRobotFrame.at<double>(0),
-                                        aprilTagInRobotFrame.at<double>(1),
-                                        aprilTagInRobotFrame.at<double>(2));
+          tag_detection_camera_array_msg, data.det->id, 
+          data.camera_position[0], data.camera_position[1], data.camera_position[2]);
+      apriltags_cuda::add_tag_detection(tag_detection_array_msg, data.det->id,
+                                        data.robot_position.at<double>(0),
+                                        data.robot_position.at<double>(1),
+                                        data.robot_position.at<double>(2));
     }
     detector_->ReinitializeDetections();
   }

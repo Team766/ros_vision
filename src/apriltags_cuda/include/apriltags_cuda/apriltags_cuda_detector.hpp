@@ -2,6 +2,7 @@
 
 #include <cv_bridge/cv_bridge.h>
 
+#include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <filesystem>
@@ -39,6 +40,9 @@ extern "C" {
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
+// Forward declaration for test classes
+class TestableApriltagsDetectorSorting;
+
 /**
  * @brief Main node for AprilTag detection using GPU acceleration.
  *
@@ -58,6 +62,9 @@ using json = nlohmann::json;
  *   - publish_pose_to_topic: Output topic for tag detections
  */
 class ApriltagsDetector : public rclcpp::Node {
+  // Allow test classes to access private members
+  friend class TestableApriltagsDetectorSorting;
+  
  public:
   /**
    * @brief Construct the ApriltagsDetector node and initialize topics and
@@ -76,6 +83,17 @@ class ApriltagsDetector : public rclcpp::Node {
    * @brief Destructor. Cleans up detector and stops publisher queue.
    */
   ~ApriltagsDetector();
+
+  /**
+   * @brief Structure to hold detection data for sorting by distance.
+   */
+  struct DetectionData {
+    apriltag_detection_t *det;          ///< Pointer to the raw detection
+    cv::Vec3d camera_position;          ///< Position in camera coordinate frame
+    cv::Mat robot_position;             ///< Position in robot coordinate frame
+    double distance;                    ///< Euclidean distance from camera origin
+    double pose_error;                  ///< Pose estimation error
+  };
 
  protected:
   /**
