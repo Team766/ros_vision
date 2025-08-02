@@ -3,7 +3,7 @@
 <package format="3">
   <name>vision_utils</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Vision utility functions including configuration loading and 3D rotation mathematics using OpenCV</description>
   <maintainer email="cgpadwick@gmail.com">cpadwick</maintainer>
   <license>Apache-2.0</license>
 
@@ -11,6 +11,7 @@
 
   <depend>ament_index_cpp</depend>
   <depend>vision_deps</depend>
+  <depend>libopencv-dev</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

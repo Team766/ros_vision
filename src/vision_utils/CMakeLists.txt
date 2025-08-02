@@ -53,10 +53,16 @@ install(
 )
 
 install(
-  TARGETS vision_utils rotation_demo
+  TARGETS vision_utils
   EXPORT vision_utils-targets
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
+# Install demo executable separately (not part of exported targets)
+install(
+  TARGETS rotation_demo
   RUNTIME DESTINATION bin
 )
 
