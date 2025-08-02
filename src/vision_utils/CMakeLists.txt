@@ -4,12 +4,14 @@ project(vision_utils)
 find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(vision_deps REQUIRED)
+find_package(OpenCV REQUIRED)
 
 set(VISION_DEPS_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../install/vision_deps)
 
 # Create a proper library instead of interface-only
 add_library(vision_utils 
   src/config_loader.cpp
+  src/rotation_utils.cpp
 )
 
 # Ensure position-independent code for shared library linking
@@ -23,8 +25,27 @@ target_include_directories(vision_utils
     ${VISION_DEPS_INSTALL_DIR}/json-install/include/
 )
 
-target_link_libraries(vision_utils)
-ament_target_dependencies(vision_utils ament_index_cpp vision_deps)
+target_link_libraries(vision_utils ${OpenCV_LIBRARIES})
+ament_target_dependencies(vision_utils ament_index_cpp vision_deps OpenCV)
+
+# Demo executable
+add_executable(rotation_demo
+  src/rotation_demo.cpp
+)
+
+target_include_directories(rotation_demo
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(rotation_demo
+  vision_utils
+)
+
+ament_target_dependencies(rotation_demo
+  ament_index_cpp
+  vision_deps
+)
 
 install(
   DIRECTORY include/
@@ -32,7 +53,7 @@ install(
 )
 
 install(
-  TARGETS vision_utils
+  TARGETS vision_utils rotation_demo
   EXPORT vision_utils-targets
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
@@ -90,6 +111,24 @@ if(BUILD_TESTING)
   )
   
   ament_target_dependencies(test_config_loader_utilities
+    ament_index_cpp
+    vision_deps
+  )
+  
+  ament_add_gtest(test_rotation_utils
+    test/test_rotation_utils.cpp
+  )
+  
+  target_include_directories(test_rotation_utils
+    PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+  )
+  
+  target_link_libraries(test_rotation_utils
+    vision_utils
+  )
+  
+  ament_target_dependencies(test_rotation_utils
     ament_index_cpp
     vision_deps
   )
