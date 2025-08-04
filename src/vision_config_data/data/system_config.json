@@ -13,8 +13,8 @@
             "format": "MJPG",
             "height": 800,
             "width": 1280,
-            "frame_rate": 100,
-            "api_preference": "V4L2"
+            "frame_rate":100,
+            "api_preference": "ANY"
         },
         "199": {
             "location": "center_front",
@@ -98,6 +98,18 @@
                 0.1
             ]
         }
+    },
+    "bag_recording": {
+        "output_directory": "/tmp/ros_vision_bags",
+        "max_bag_size": "1000000000",
+        "topics": [
+            "cameras/{location}/image_raw/compressed",
+            "apriltags/{location}/images/compressed", 
+            "apriltags/{location}/pose",
+            "apriltags/{location}/pose_camera"
+        ],
+        "auto_split": true,
+        "max_duration": 300
     },
     "network_tables_config": {
         "table_address": "10.7.66.2",

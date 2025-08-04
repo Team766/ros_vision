@@ -3,11 +3,13 @@ import os
 import re
 import sys
 import logging
+from datetime import datetime
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument, LogInfo
-from launch.substitutions import LaunchConfiguration
+from launch.actions import DeclareLaunchArgument, LogInfo, ExecuteProcess
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration, TextSubstitution, PythonExpression
 from ament_index_python.packages import get_package_share_directory
 
 # Configure global logging
@@ -20,6 +22,100 @@ logger = logging.getLogger('ros_vision_launch')
 
 BY_ID_PATH = "/dev/v4l/by-id/"
 """Path to the directory containing persistent V4L device symlinks by hardware ID."""
+
+
+def load_bag_recording_config():
+    """
+    Load bag recording configuration from system_config.json
+    
+    Returns:
+        dict: Bag recording configuration, or empty dict if not found
+    """
+    try:
+        data_path = os.path.join(
+            get_package_share_directory("vision_config_data"), "data", "system_config.json"
+        )
+        
+        with open(data_path, "r") as f:
+            config_data = json.load(f)
+        
+        bag_config = config_data.get("bag_recording", {})
+        
+        if bag_config:
+            logger.info("Bag recording configuration loaded")
+        else:
+            logger.info("No bag recording configuration found")
+        return bag_config
+        
+    except Exception as e:
+        logger.warning(f"Could not load bag recording config: {e}")
+        return {}
+
+
+def create_bag_recording_node(bag_config, camera_locations):
+    """
+    Create a ROS bag recording node based on configuration
+    
+    Args:
+        bag_config (dict): Bag recording configuration
+        camera_locations (dict): Mapping of serial->location for cameras
+        
+    Returns:
+        ExecuteProcess: ROS bag recording process node with condition
+    """
+    if not bag_config:
+        raise Exception("Bag recording configuration is required when enable_bag_recording is true")
+        
+    # Create output directory with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = os.path.join(bag_config.get("output_directory", "/tmp/ros_vision_bags"), 
+                              f"ros_vision_{timestamp}")
+    
+    # Build topic list
+    topics = []
+    
+    # Add configured topics, expanding for each camera location
+    configured_topics = bag_config.get("topics", [])
+    for topic in configured_topics:
+        if "{location}" in topic:
+            # Expand topic for each camera location
+            for location in set(camera_locations.values()):
+                topics.append(topic.format(location=location))
+        else:
+            topics.append(topic)
+    
+    # Remove duplicates
+    topics = list(set(topics))
+    
+    # Build ros2 bag record command
+    cmd = ["ros2", "bag", "record"]
+    
+    # Add output directory
+    cmd.extend(["-o", output_dir])
+    
+    # Add max bag size if specified
+    max_size = bag_config.get("max_bag_size")
+    if max_size:
+        cmd.extend(["--max-bag-size", max_size])
+    
+    # Add max duration if specified
+    max_duration = bag_config.get("max_duration")
+    if max_duration:
+        cmd.extend(["--max-bag-duration", str(max_duration)])
+    
+    # Add topics
+    cmd.extend(topics)
+    
+    logger.info(f"Creating bag recording node with {len(topics)} topics")
+    logger.info(f"Output directory: {output_dir}")
+    logger.debug(f"Topics to record: {topics}")
+    
+    return ExecuteProcess(
+        cmd=cmd,
+        name="bag_recorder",
+        output="screen",
+        condition=IfCondition(LaunchConfiguration('enable_bag_recording'))
+    )
 
 
 def scan_for_cameras():
@@ -209,6 +305,12 @@ def generate_launch_description():
         description='Path to timing CSV file for apriltags node.'
     )
     
+    enable_bag_recording_arg = DeclareLaunchArgument(
+        'enable_bag_recording',
+        default_value='true',
+        description='Enable ROS bag recording of vision topics'
+    )
+    
     try:
         # First we scan for cameras.
         cameras_by_serial_id = scan_for_cameras()
@@ -218,7 +320,7 @@ def generate_launch_description():
         logger.info(f"Camera location mapping: {cameras_by_location}")
 
         # For each camera found, set up the image processing pipeline.
-        nodes = [log_level_arg, measurement_mode_arg, timing_csv_path_arg]
+        nodes = [log_level_arg, measurement_mode_arg, timing_csv_path_arg, enable_bag_recording_arg]
         
         # Add launch info messages
         nodes.append(LogInfo(msg=f"Launching vision system with {len(cameras_by_serial_id)} cameras"))
@@ -278,6 +380,13 @@ def generate_launch_description():
         nodes.append(foxglove_node)
         node_count += 1
         logger.info("Added Foxglove bridge node")
+
+        # Add bag recording node (conditionally executed based on launch argument)
+        bag_config = load_bag_recording_config()
+        bag_recorder = create_bag_recording_node(bag_config, cameras_by_location)
+        nodes.append(bag_recorder)
+        node_count += 1
+        logger.info("Added ROS bag recording node (conditional on enable_bag_recording argument)")
 
         logger.info(f"Launch configuration completed successfully with {node_count} nodes")
         logger.info("=== ROS Vision Launch Configuration Complete ===")

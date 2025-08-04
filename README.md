@@ -106,6 +106,95 @@ Once the connection is opened you should see the two images displayed, one from 
 
 ![Foxglove studio showing the two camera feeds](res/foxglovestudio.png)
 
+# ROS Bag Recording
+
+The vision system includes built-in support for recording ROS bags to capture vision data for analysis, debugging, and replay.
+
+## Configuration
+
+Bag recording is configured in the `system_config.json` file under the `bag_recording` section:
+
+```json
+{
+  "bag_recording": {
+    "output_directory": "/tmp/ros_vision_bags",
+    "max_bag_size": "1GB",
+    "compression": "zstd",
+    "topics": [
+      "cameras/{location}/image_raw",
+      "apriltags/{location}/images", 
+      "apriltags/{location}/pose",
+      "apriltags/{location}/pose_camera"
+    ],
+    "auto_split": true,
+    "max_duration": 300
+  }
+}
+```
+
+### Configuration Options
+
+- **output_directory**: Directory where bag files will be saved (with timestamp subdirectories)
+- **max_bag_size**: Maximum size per bag file in bytes
+- **topics**: List of topics to record (supports `{location}` template expansion)
+- **auto_split**: Whether to automatically split into multiple files
+- **max_duration**: Maximum recording duration in seconds
+
+### Disable Bag Recording
+
+Bag recording is enabled by default.  To disable it add the `enable_bag_recording:=false` argument when launching:
+
+```bash
+source install/setup.bash
+ros2 launch ros_vision_launch launch_vision.py enable_bag_recording:=false
+```
+
+### Output
+
+Bags are saved with timestamped directories like:
+```
+/tmp/ros_vision_bags/ros_vision_20250803_175413/
+```
+
+### Topic Template Expansion
+
+The `{location}` template in topic names automatically expands for each camera location. For example:
+- `cameras/{location}/image_raw` becomes:
+  - `cameras/center_front/image_raw`
+  - `cameras/left_side/image_raw`
+
+### Viewing Recorded Data
+
+You can replay recorded bags using standard ROS2 tools:
+
+```bash
+# Play back the entire bag
+ros2 bag play /tmp/ros_vision_bags/ros_vision_20250803_175413/
+
+# Play back specific topics only
+ros2 bag play /tmp/ros_vision_bags/ros_vision_20250803_175413/ --topics /cameras/center_front/image_raw
+
+# Play at different speeds
+ros2 bag play /tmp/ros_vision_bags/ros_vision_20250803_175413/ --rate 0.5
+```
+
+### Viewing Data In Foxglove
+
+You can also view the data in Foxglove Studio but you need to convert it to mcap format, as it can't read all the messages in db3 format.  To convert do this:
+ - cd to the root directory, e.g. `/tmp`
+ - run the following command: 
+
+```
+cat << EOF > convert.yaml
+output_bags:
+  - uri: ros2_output
+    storage_id: mcap
+    all: true
+EOF
+```
+
+This will write a file called `convert.yaml` in the `/tmp` directory.  Now if you run `ros2 bag convert -i <path_to_ros_bag_directory> -o convert.yaml` a new directory called ros2_output will be created that contains mcap versions of the db3 files.  You can load this into foxglove directly.
+
 # Running In Optimized Mode
 
 If you want to run the pipeline with the lowest latency possible, then launch the pipeline using the `./optimized_launch.bsh` command.  This command will:
