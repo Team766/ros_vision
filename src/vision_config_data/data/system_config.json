@@ -114,5 +114,10 @@
     "network_tables_config": {
         "table_address": "10.7.66.2",
         "table_name": "/SmartDashboard"
+    },
+    "performance_optimization": {
+        "enable_optimizations": false,
+        "available_cpu_cores": [2, 3, 4, 5],
+        "default_priority": 80
     }
 }

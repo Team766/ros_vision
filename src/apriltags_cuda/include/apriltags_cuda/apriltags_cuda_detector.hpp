@@ -19,15 +19,16 @@
 #include <string>
 #include <vector>
 
-#include "apriltags_cuda/DoubleArraySender.h"
 #include "ament_index_cpp/get_package_share_directory.hpp"
+#include "apriltags_cuda/DoubleArraySender.h"
 #include "apriltags_cuda/apriltag_gpu.h"
 #include "apriltags_cuda/apriltag_utils.h"
 #include "apriltags_cuda/msg/tag_detection.hpp"
 #include "apriltags_cuda/msg/tag_detection_array.hpp"
 #include "apriltags_cuda/tag_detection_msg_helpers.hpp"
-#include "vision_utils/publisher_queue.hpp"
 #include "vision_utils/config_loader.hpp"
+#include "vision_utils/process_scheduler.hpp"
+#include "vision_utils/publisher_queue.hpp"
 
 extern "C" {
 #include "apriltag.h"
@@ -64,7 +65,7 @@ class TestableApriltagsDetectorSorting;
 class ApriltagsDetector : public rclcpp::Node {
   // Allow test classes to access private members
   friend class TestableApriltagsDetectorSorting;
-  
+
  public:
   /**
    * @brief Construct the ApriltagsDetector node and initialize topics and
@@ -88,11 +89,11 @@ class ApriltagsDetector : public rclcpp::Node {
    * @brief Structure to hold detection data for sorting by distance.
    */
   struct DetectionData {
-    apriltag_detection_t *det;          ///< Pointer to the raw detection
-    cv::Vec3d camera_position;          ///< Position in camera coordinate frame
-    cv::Mat robot_position;             ///< Position in robot coordinate frame
-    double distance;                    ///< Euclidean distance from camera origin
-    double pose_error;                  ///< Pose estimation error
+    apriltag_detection_t *det;  ///< Pointer to the raw detection
+    cv::Vec3d camera_position;  ///< Position in camera coordinate frame
+    cv::Mat robot_position;     ///< Position in robot coordinate frame
+    double distance;            ///< Euclidean distance from camera origin
+    double pose_error;          ///< Pose estimation error
   };
 
  protected:
@@ -105,15 +106,17 @@ class ApriltagsDetector : public rclcpp::Node {
   cv::Mat extrinsic_offset_;    ///< 3x1 offset vector from extrinsics
 
   /**
-   * @brief Transform a 3D point from camera frame to robot frame using extrinsic parameters.
-   * 
-   * This method applies the extrinsic rotation and translation to transform coordinates
-   * from the camera's coordinate system to the robot's coordinate system.
-   * 
+   * @brief Transform a 3D point from camera frame to robot frame using
+   * extrinsic parameters.
+   *
+   * This method applies the extrinsic rotation and translation to transform
+   * coordinates from the camera's coordinate system to the robot's coordinate
+   * system.
+   *
    * @param camera_point 3D point in camera coordinate system as cv::Vec3d
    * @return 3D point in robot coordinate system as cv::Mat (3x1)
    */
-  cv::Mat transformCameraToRobot(const cv::Vec3d& camera_point) const;
+  cv::Mat transformCameraToRobot(const cv::Vec3d &camera_point) const;
 
  private:
   /**
@@ -170,6 +173,12 @@ class ApriltagsDetector : public rclcpp::Node {
    */
   void setup_measurement_params();
 
+  /**
+   * @brief Apply CPU pinning and real-time scheduling using vision_utils
+   * ProcessScheduler.
+   */
+  void applyCpuPinningAndScheduling();
+
   // ROS 2 communication
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscriber_;
   std::shared_ptr<image_transport::ImageTransport> it_;
@@ -188,6 +197,10 @@ class ApriltagsDetector : public rclcpp::Node {
   std::string camera_serial_;
   std::string table_address_;
   std::string table_name_;
+
+  // CPU pinning and scheduling parameters
+  int pin_to_core_;
+  int priority_;
 
   // Network tables
   std::shared_ptr<DoubleArraySender> tag_sender_;

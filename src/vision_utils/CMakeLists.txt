@@ -3,6 +3,7 @@ project(vision_utils)
 
 find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(rclcpp REQUIRED)
 find_package(vision_deps REQUIRED)
 find_package(OpenCV REQUIRED)
 
@@ -12,6 +13,7 @@ set(VISION_DEPS_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../install/vision_dep
 add_library(vision_utils 
   src/config_loader.cpp
   src/rotation_utils.cpp
+  src/process_scheduler.cpp
 )
 
 # Ensure position-independent code for shared library linking
@@ -26,7 +28,7 @@ target_include_directories(vision_utils
 )
 
 target_link_libraries(vision_utils ${OpenCV_LIBRARIES})
-ament_target_dependencies(vision_utils ament_index_cpp vision_deps OpenCV)
+ament_target_dependencies(vision_utils ament_index_cpp rclcpp vision_deps OpenCV)
 
 # Demo executable
 add_executable(rotation_demo
@@ -77,7 +79,7 @@ install(
 
 ament_export_targets(vision_utils-targets HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
-ament_export_dependencies(ament_index_cpp vision_deps)
+ament_export_dependencies(ament_index_cpp rclcpp vision_deps)
 
 # Testing
 if(BUILD_TESTING)

@@ -10,6 +10,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>ament_index_cpp</depend>
+  <depend>rclcpp</depend>
   <depend>vision_deps</depend>
   <depend>libopencv-dev</depend>
 
