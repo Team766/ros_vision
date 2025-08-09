@@ -9,4 +9,5 @@ export CMAKE_CXX_COMPILER=/usr/bin/clang++-17
 export CMAKE_CUDA_ARCHITECTURES=87
 
 export LD_LIBRARY_PATH="$SCRIPT_DIR/install/vision_deps/opencv-install/lib:$LD_LIBRARY_PATH"
+export PYTHONPATH="$SCRIPT_DIR/install/vision_deps/opencv-install/lib/python3.10/dist-packages:$PYTHONPATH"
 
