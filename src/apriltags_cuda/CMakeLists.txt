@@ -254,4 +254,28 @@ endif()
 
 ament_export_dependencies(rosidl_default_runtime)
 
+# Clang-format targets  
+file(GLOB_RECURSE APRILTAGS_CUDA_SOURCE_FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cu
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/*/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/*/*.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/*.cu
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/*.h
+)
+
+add_custom_target(format_all
+    COMMAND clang-format -i -style=Google ${APRILTAGS_CUDA_SOURCE_FILES}
+    COMMENT "Running clang-format on apriltags_cuda source files"
+    VERBATIM
+)
+
+add_custom_target(format_check
+    COMMAND clang-format --dry-run -Werror -style=Google ${APRILTAGS_CUDA_SOURCE_FILES}
+    COMMENT "Checking clang-format compliance on apriltags_cuda source files"
+    VERBATIM
+)
+
 ament_package()

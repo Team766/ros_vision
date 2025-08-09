@@ -17,12 +17,14 @@
 
 #include <cv_bridge/cv_bridge.h>
 
+#include <atomic>
 #include <image_transport/image_transport.hpp>
 #include <memory>
 #include <opencv2/opencv.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <string>
+#include <thread>
 
 #include "usb_camera/camera_interface.hpp"
 #include "vision_utils/config_loader.hpp"
@@ -42,12 +44,16 @@ class CameraPublisher : public rclcpp::Node {
 
  private:
   void timerCallback();
+  void captureLoop();
   void initializeCamera(int camera_idx);
   void applyCameraConfig(const vision_utils::CameraConfig& config);
   void applyCpuPinningAndScheduling();
 
   std::unique_ptr<CameraInterface> camera_;
   rclcpp::TimerBase::SharedPtr timer_;
+  std::thread capture_thread_;
+  std::atomic<bool> should_stop_{false};
+  std::atomic<size_t> consecutive_read_failures_{0};
 
   std::shared_ptr<image_transport::ImageTransport> it_;
   std::shared_ptr<

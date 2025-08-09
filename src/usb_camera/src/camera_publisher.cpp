@@ -14,6 +14,7 @@
 
 #include "usb_camera/camera_publisher.hpp"
 
+#include <thread>
 #include "usb_camera/opencv_camera.hpp"
 #include "vision_utils/process_scheduler.hpp"
 
@@ -52,11 +53,6 @@ CameraPublisher::CameraPublisher() : Node("camera_publisher") {
 
   initializeCamera(camera_idx);
 
-  // Use higher frequency timer for more responsive capture
-  timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(8),  // ~125fps to stay ahead of camera
-      std::bind(&CameraPublisher::timerCallback, this));
-
   // Apply CPU pinning and real-time scheduling if requested
   applyCpuPinningAndScheduling();
 
@@ -89,16 +85,19 @@ CameraPublisher::CameraPublisher(std::unique_ptr<CameraInterface> camera)
   RCLCPP_INFO(this->get_logger(), "Publishing on Topic: '%s'",
               topic_name_.c_str());
 
-  // Use higher frequency timer for more responsive capture
-  timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(8),  // ~125fps to stay ahead of camera
-      std::bind(&CameraPublisher::timerCallback, this));
-
   frame_count_ = 0;
   last_fps_time_ = this->now();
 }
 
 CameraPublisher::~CameraPublisher() {
+  // Signal capture thread to stop
+  should_stop_ = true;
+  
+  // Wait for capture thread to finish
+  if (capture_thread_.joinable()) {
+    capture_thread_.join();
+  }
+  
   if (image_pub_queue_) {
     image_pub_queue_->stop();
   }
@@ -122,6 +121,9 @@ void CameraPublisher::init() {
   image_pub_queue_ = std::make_shared<
       PublisherQueue<sensor_msgs::msg::Image, image_transport::Publisher>>(
       publisher_, 1);  // Reduced from 2 to 1 for lower latency
+  
+  // Start frame-driven capture thread after publisher is initialized
+  capture_thread_ = std::thread(&CameraPublisher::captureLoop, this);
 }
 
 void CameraPublisher::timerCallback() {
@@ -160,6 +162,64 @@ void CameraPublisher::timerCallback() {
   }
 
   image_pub_queue_->enqueue(msg);
+}
+
+void CameraPublisher::captureLoop() {
+  RCLCPP_INFO(this->get_logger(), "Starting frame-driven capture loop");
+  
+  while (!should_stop_ && rclcpp::ok()) {
+    // Capture frame immediately when available (blocking call)
+    cv::Mat frame;
+    if (!camera_->read(frame)) {
+      // Rate limit warnings to avoid spam - only log every 100th failure
+      size_t failure_count = ++consecutive_read_failures_;
+      if (failure_count == 1 || failure_count % 100 == 0) {
+        RCLCPP_WARN(this->get_logger(), 
+                    "Failed to capture frame from camera (failure #%zu)", 
+                    failure_count);
+      }
+      // Brief sleep to avoid tight loop on persistent failures
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      continue;
+    }
+    
+    // Reset failure counter on successful read
+    consecutive_read_failures_ = 0;
+
+    // Timestamp immediately after frame capture for minimal latency
+    rclcpp::Time capture_time = this->now();
+
+    if (frame.empty()) {
+      RCLCPP_WARN(this->get_logger(), "Captured empty frame");
+      continue;
+    }
+
+    // Convert and publish frame immediately
+    auto msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
+    msg->header.stamp = capture_time;
+    msg->header.frame_id = "camera_frame";
+
+    // Measure and log capture-to-publish latency periodically
+    frame_count_++;
+    if (frame_count_ % 100 == 0) {
+      auto current_time = this->now();
+      auto publish_latency = (current_time - capture_time).seconds() * 1000.0;
+      auto fps_interval = (current_time - last_fps_time_).seconds();
+      double fps = 100.0 / fps_interval;
+
+      RCLCPP_DEBUG(this->get_logger(),
+                   "Camera stats - FPS: %.1f, Capture->Publish latency: %.2f ms",
+                   fps, publish_latency);
+      last_fps_time_ = current_time;
+    }
+
+    // Enqueue for publishing
+    if (image_pub_queue_) {
+      image_pub_queue_->enqueue(msg);
+    }
+  }
+  
+  RCLCPP_INFO(this->get_logger(), "Frame capture loop terminated");
 }
 
 void CameraPublisher::initializeCamera(int camera_idx) {

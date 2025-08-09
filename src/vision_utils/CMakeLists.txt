@@ -142,4 +142,27 @@ if(BUILD_TESTING)
   )
 endif()
 
+# Clang-format targets
+file(GLOB_RECURSE VISION_UTILS_SOURCE_FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/*/*.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/*/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/*.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/example_usage/src/*.cpp
+)
+
+add_custom_target(format_all
+    COMMAND clang-format -i -style=Google ${VISION_UTILS_SOURCE_FILES}
+    COMMENT "Running clang-format on vision_utils source files"
+    VERBATIM
+)
+
+add_custom_target(format_check
+    COMMAND clang-format --dry-run -Werror -style=Google ${VISION_UTILS_SOURCE_FILES}
+    COMMENT "Checking clang-format compliance on vision_utils source files"
+    VERBATIM
+)
+
 ament_package()
