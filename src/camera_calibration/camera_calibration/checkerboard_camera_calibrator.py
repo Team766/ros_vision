@@ -1,5 +1,7 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy
+from rclpy.duration import Duration
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
@@ -36,11 +38,18 @@ class CheckerboardCalibrationNode(Node):
         self.objp[:, :2] = np.mgrid[0:self.board_cols, 0:self.board_rows].T.reshape(-1, 2)
         self.objp *= self.square_length
 
+        qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            durability=QoSDurabilityPolicy.VOLATILE,
+            deadline=Duration(nanoseconds=50_000_000),  # 50 ms; optional
+        )
+
         self.subscriber = self.create_subscription(
             Image,
             subscriber_topic,
             self.image_callback,
-            10)
+            qos)
 
         self.publisher = self.create_publisher(Image, publisher_topic, 10)
 
@@ -51,6 +60,7 @@ class CheckerboardCalibrationNode(Node):
 
         self.calibration_done = False
         self.num_consecutive_frames_detected = 0
+        self.calibrate_every_n_frames = 10
 
     def image_callback(self, msg):
         if self.calibration_done:
@@ -69,7 +79,7 @@ class CheckerboardCalibrationNode(Node):
             self.num_consecutive_frames_detected += 1
             cv2.drawChessboardCorners(img, (self.board_cols, self.board_rows), corners, ret)
 
-        if self.num_consecutive_frames_detected >= 5:
+        if self.num_consecutive_frames_detected >=  self.calibrate_every_n_frames:
             self.get_logger().info("Chessboard detected successfully.")
             # Refine corner positions
             criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)

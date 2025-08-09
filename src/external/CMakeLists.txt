@@ -29,7 +29,7 @@ ExternalProject_Add(
     PREFIX ${CMAKE_BINARY_DIR}/OpenCV
     GIT_REPOSITORY https://github.com/opencv/opencv.git
     GIT_TAG 4.9.0
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${OPENCV_INSTALL_DIR}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${OPENCV_INSTALL_DIR} -DBUILD_opencv_python3=1
     BUILD_COMMAND ${CMAKE_COMMAND} --build . --parallel ${NUM_PROCESSORS}
     INSTALL_COMMAND ${CMAKE_COMMAND} --install .
 )

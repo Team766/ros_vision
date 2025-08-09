@@ -1,5 +1,7 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy
+from rclpy.duration import Duration
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
@@ -43,11 +45,18 @@ class CharucoCalibrationNode(Node):
         )
         self.detector = aruco.CharucoDetector(self.board)
 
+        qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            durability=QoSDurabilityPolicy.VOLATILE,
+            deadline=Duration(nanoseconds=50_000_000),  # 50 ms; optional
+        )
+
         self.subscriber = self.create_subscription(
             Image,
             subscriber_topic,
             self.image_callback,
-            10)
+            qos)
 
         self.publisher = self.create_publisher(Image, publisher_topic, 10)
 
@@ -59,6 +68,7 @@ class CharucoCalibrationNode(Node):
         self.calibration_done = False
 
         self.consecutive_frames_detected = 0
+        self.calibrate_every_n_frames = 10
 
     def image_callback(self, msg):
         if self.calibration_done:
@@ -73,7 +83,7 @@ class CharucoCalibrationNode(Node):
             aruco.drawDetectedCornersCharuco(img, corners, ids, (0, 255, 0))
             aruco.drawDetectedMarkers(img, marker_corners, marker_ids)
 
-        if self.consecutive_frames_detected >= 5:
+        if self.consecutive_frames_detected >= self.calibrate_every_n_frames:
             aruco.drawDetectedCornersCharuco(img, corners, ids, (0, 255, 0))
             aruco.drawDetectedMarkers(img, marker_corners, marker_ids)
             self.all_corners.append(corners)
