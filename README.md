@@ -76,10 +76,24 @@ Now run `./boostrap.sh` to build the code.
 
 ## Run The Pipeline
 
-### Start The System Using The Launcher
+### Start The System Using The Launcher Script (Recommended)
 
 - plug in a USB camera.  Arducam works best (at least we've tested it!)
 - in a terminal type:
+
+```
+./start_vision.bsh
+```
+
+This convenient script automatically sources all necessary environment files and launches the vision system. For help with launch arguments:
+
+```
+./start_vision.bsh --help
+```
+
+### Start The System Manually
+
+Alternatively, you can launch manually:
 
 ```
 source install/setup.bash
@@ -142,7 +156,13 @@ Bag recording is configured in the `system_config.json` file under the `bag_reco
 
 ### Disable Bag Recording
 
-Bag recording is enabled by default.  To disable it add the `enable_bag_recording:=false` argument when launching:
+Bag recording is enabled by default.  To disable it use:
+
+```bash
+./start_vision.bsh enable_bag_recording:=false
+```
+
+Or manually:
 
 ```bash
 source install/setup.bash
@@ -223,6 +243,11 @@ When the device reboots cores 4 and 5 should show at 0% utilization.  When you l
 To collect timing measurements from the apriltags_cuda node:
 
 1. Launch the vision system with measurement mode enabled:
+   ```bash
+   ./start_vision.bsh measurement_mode:=true
+   ```
+   
+   Or manually:
    ```bash
    source install/setup.bash
    ros2 launch ros_vision_launch launch_vision.py measurement_mode:=true
