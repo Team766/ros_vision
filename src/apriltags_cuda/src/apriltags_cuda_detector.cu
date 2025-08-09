@@ -13,6 +13,7 @@ ApriltagsDetector::ApriltagsDetector()
   get_network_tables_params();
   setup_apriltags();
   setup_measurement_params();
+  applyCpuPinningAndScheduling();
 }
 
 /**
@@ -98,14 +99,19 @@ void ApriltagsDetector::setup_topics() {
   publish_images_to_topic_ =
       this->get_parameter("publish_images_to_topic").as_string();
 
-  this->declare_parameter<std::string>("publish_pose_to_topic",
-                                       "camera/pose");
+  this->declare_parameter<std::string>("publish_pose_to_topic", "camera/pose");
   publish_pose_to_topic_ =
       this->get_parameter("publish_pose_to_topic").as_string();
 
+  this->declare_parameter<int>("pin_to_core", -1);
+  pin_to_core_ = this->get_parameter("pin_to_core").as_int();
+
+  this->declare_parameter<int>("priority", 80);
+  priority_ = this->get_parameter("priority").as_int();
+
   // Create subscription with optimized QoS for low latency
-  auto qos = rclcpp::QoS(1)      // Reduce queue depth for lower latency
-                 .best_effort()  // Use best effort for lower latency
+  auto qos = rclcpp::QoS(1)              // Reduce queue depth for lower latency
+                 .best_effort()          // Use best effort for lower latency
                  .durability_volatile()  // No need to store messages
                  .deadline(std::chrono::milliseconds(
                      50));  // Expect messages within 50ms
@@ -115,8 +121,7 @@ void ApriltagsDetector::setup_topics() {
       std::bind(&ApriltagsDetector::imageCallback, this,
                 std::placeholders::_1));
 
-  RCLCPP_INFO(this->get_logger(),
-              "Subscribed to topic: %s with optimized QoS",
+  RCLCPP_INFO(this->get_logger(), "Subscribed to topic: %s with optimized QoS",
               topic_name.c_str());
 }
 
@@ -149,15 +154,18 @@ void ApriltagsDetector::setup_apriltags() {
       camera_serial_, table_address_, table_name_);
 
   // Load camera configuration to get frame dimensions
-  auto camera_config = vision_utils::ConfigLoader::getCameraConfig(camera_serial_);
-  
+  auto camera_config =
+      vision_utils::ConfigLoader::getCameraConfig(camera_serial_);
+
   if (!camera_config.has_value()) {
     RCLCPP_ERROR(this->get_logger(),
-                 "Could not load camera config for serial %s - configuration is required",
+                 "Could not load camera config for serial %s - configuration "
+                 "is required",
                  camera_serial_.c_str());
-    throw std::runtime_error("Failed to load camera configuration for serial: " + camera_serial_);
+    throw std::runtime_error(
+        "Failed to load camera configuration for serial: " + camera_serial_);
   }
-  
+
   int frame_width = camera_config->width;
   int frame_height = camera_config->height;
   RCLCPP_INFO(this->get_logger(),
@@ -178,8 +186,8 @@ void ApriltagsDetector::setup_apriltags() {
   info_.cx = cam.cx;
   info_.cy = cam.cy;
 
-  RCLCPP_INFO(this->get_logger(),
-              "GPU Apriltag Detector created, took %ld ms", processing_time);
+  RCLCPP_INFO(this->get_logger(), "GPU Apriltag Detector created, took %ld ms",
+              processing_time);
 }
 
 /**
@@ -225,12 +233,14 @@ void ApriltagsDetector::get_extrinsic_params() {
     if (camera_config.is_string()) {
       // Legacy format: camera config is just a location string
       camera_position = camera_config.get<std::string>();
-    } else if (camera_config.is_object() && camera_config.contains("location")) {
+    } else if (camera_config.is_object() &&
+               camera_config.contains("location")) {
       // New format: camera config is an object with location field
       camera_position = camera_config["location"].get<std::string>();
     } else {
       RCLCPP_ERROR(this->get_logger(),
-                   "Invalid camera config format for serial %s: expected string or object with 'location' field",
+                   "Invalid camera config format for serial %s: expected "
+                   "string or object with 'location' field",
                    camera_serial_.c_str());
       return;
     }
@@ -277,21 +287,20 @@ void ApriltagsDetector::get_extrinsic_params() {
   extrinsic_rotation_ = rotation;
   extrinsic_offset_ = cv::Mat(offset);
 
-  RCLCPP_INFO(
-      this->get_logger(),
-      "Loaded extrinsics for %s: "
-      "rotation=[[%f,%f,%f],[%f,%f,%f],[%f,%f,%f]], offset=[%f,%f,%f]",
-      camera_position.c_str(), rotation.at<double>(0, 0),
-      rotation.at<double>(0, 1), rotation.at<double>(0, 2),
-      rotation.at<double>(1, 0), rotation.at<double>(1, 1),
-      rotation.at<double>(1, 2), rotation.at<double>(2, 0),
-      rotation.at<double>(2, 1), rotation.at<double>(2, 2), offset[0],
-      offset[1], offset[2]);
+  RCLCPP_INFO(this->get_logger(),
+              "Loaded extrinsics for %s: "
+              "rotation=[[%f,%f,%f],[%f,%f,%f],[%f,%f,%f]], offset=[%f,%f,%f]",
+              camera_position.c_str(), rotation.at<double>(0, 0),
+              rotation.at<double>(0, 1), rotation.at<double>(0, 2),
+              rotation.at<double>(1, 0), rotation.at<double>(1, 1),
+              rotation.at<double>(1, 2), rotation.at<double>(2, 0),
+              rotation.at<double>(2, 1), rotation.at<double>(2, 2), offset[0],
+              offset[1], offset[2]);
 }
 
 void ApriltagsDetector::get_network_tables_params() {
   auto network_config = vision_utils::ConfigLoader::getNetworkTablesConfig();
-  
+
   table_address_ = network_config.table_address;
   table_name_ = network_config.table_name;
 
@@ -301,8 +310,8 @@ void ApriltagsDetector::get_network_tables_params() {
       table_address_.c_str(), table_name_.c_str());
 }
 
-void ApriltagsDetector::get_camera_calibration_data(frc971::apriltag::CameraMatrix *cam,
-                                 frc971::apriltag::DistCoeffs *dist) {
+void ApriltagsDetector::get_camera_calibration_data(
+    frc971::apriltag::CameraMatrix *cam, frc971::apriltag::DistCoeffs *dist) {
   // Locate the calibration file for the camera serial id that we are
   // processing.
   fs::path config_path =
@@ -331,8 +340,8 @@ void ApriltagsDetector::get_camera_calibration_data(frc971::apriltag::CameraMatr
                  "Unable to find key \"disto\" in calibration file");
   }
 
-  RCLCPP_INFO(this->get_logger(),
-              "Loading camera calibration params from: %s", cal_file.c_str());
+  RCLCPP_INFO(this->get_logger(), "Loading camera calibration params from: %s",
+              cal_file.c_str());
 
   // Setup Camera Matrix
   // Intrinsic Matrices are explained here:
@@ -351,14 +360,12 @@ void ApriltagsDetector::get_camera_calibration_data(frc971::apriltag::CameraMatr
   dist->p2 = data["disto"][0][3];
   dist->k3 = data["disto"][0][4];
 
-  RCLCPP_INFO(
-      this->get_logger(),
-      "Loaded camera matrix parameters: fx: %f, fy: %f, cx: %f, cy: %f",
-      cam->fx, cam->fy, cam->cx, cam->cy);
-  RCLCPP_INFO(
-      this->get_logger(),
-      "Loaded distortion coeffs k1: %f, k2: %f, p1: %f, p2: %f, k3: %f",
-      dist->k1, dist->k2, dist->p1, dist->p2, dist->k3);
+  RCLCPP_INFO(this->get_logger(),
+              "Loaded camera matrix parameters: fx: %f, fy: %f, cx: %f, cy: %f",
+              cam->fx, cam->fy, cam->cx, cam->cy);
+  RCLCPP_INFO(this->get_logger(),
+              "Loaded distortion coeffs k1: %f, k2: %f, p1: %f, p2: %f, k3: %f",
+              dist->k1, dist->k2, dist->p1, dist->p2, dist->k3);
 }
 
 /**
@@ -370,7 +377,8 @@ void ApriltagsDetector::get_camera_calibration_data(frc971::apriltag::CameraMatr
  *
  * @param msg The incoming image message.
  */
-void ApriltagsDetector::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
+void ApriltagsDetector::imageCallback(
+    const sensor_msgs::msg::Image::SharedPtr msg) {
   cv::Mat yuyv_img;
 
   rclcpp::Time image_capture_time = msg->header.stamp;
@@ -405,12 +413,12 @@ void ApriltagsDetector::imageCallback(const sensor_msgs::msg::Image::SharedPtr m
   apriltags_cuda::msg::TagDetectionArray tag_detection_camera_array_msg;
   tag_detection_array_msg.detections.clear();
   tag_detection_camera_array_msg.detections.clear();
-  
+
   if (zarray_size(detections) > 0) {
     // First pass: collect all detections and calculate distances
     std::vector<DetectionData> detection_data;
     detection_data.reserve(zarray_size(detections));
-    
+
     for (int i = 0; i < zarray_size(detections); i++) {
       apriltag_detection_t *det;
       zarray_get(const_cast<zarray_t *>(detections), i, &det);
@@ -423,42 +431,41 @@ void ApriltagsDetector::imageCallback(const sensor_msgs::msg::Image::SharedPtr m
       cv::Vec3d aprilTagInCameraFrame(pose.t->data[0], pose.t->data[1],
                                       pose.t->data[2]);
 
-      cv::Mat aprilTagInRobotFrame = transformCameraToRobot(aprilTagInCameraFrame);
+      cv::Mat aprilTagInRobotFrame =
+          transformCameraToRobot(aprilTagInCameraFrame);
 
-      // Calculate Euclidean distance from camera origin (use camera frame for consistency)
-      double distance = std::sqrt(aprilTagInCameraFrame[0] * aprilTagInCameraFrame[0] +
-                                  aprilTagInCameraFrame[1] * aprilTagInCameraFrame[1] +
-                                  aprilTagInCameraFrame[2] * aprilTagInCameraFrame[2]);
+      // Calculate Euclidean distance from camera origin (use camera frame for
+      // consistency)
+      double distance =
+          std::sqrt(aprilTagInCameraFrame[0] * aprilTagInCameraFrame[0] +
+                    aprilTagInCameraFrame[1] * aprilTagInCameraFrame[1] +
+                    aprilTagInCameraFrame[2] * aprilTagInCameraFrame[2]);
 
       // Store detection data
-      detection_data.push_back({
-        det,
-        aprilTagInCameraFrame,
-        aprilTagInRobotFrame.clone(),
-        distance,
-        err
-      });
+      detection_data.push_back({det, aprilTagInCameraFrame,
+                                aprilTagInRobotFrame.clone(), distance, err});
 
-      RCLCPP_DEBUG(
-          this->get_logger(),
-          "Tag id: %d, distance: %.6f, x: %.6f, y: %.6f, z: %.6f, err: %.6f in camera frame",
-          det->id, distance, pose.t->data[0], pose.t->data[1], pose.t->data[2], err);
+      RCLCPP_DEBUG(this->get_logger(),
+                   "Tag id: %d, distance: %.6f, x: %.6f, y: %.6f, z: %.6f, "
+                   "err: %.6f in camera frame",
+                   det->id, distance, pose.t->data[0], pose.t->data[1],
+                   pose.t->data[2], err);
     }
 
     // Sort detections by distance (closest first)
     std::sort(detection_data.begin(), detection_data.end(),
-              [](const DetectionData& a, const DetectionData& b) {
+              [](const DetectionData &a, const DetectionData &b) {
                 return a.distance < b.distance;
               });
 
     // Second pass: process sorted detections
-    for (const auto& data : detection_data) {
-      RCLCPP_DEBUG(this->get_logger(),
-                   "Processing sorted tag id: %d, distance: %.6f, x: %.6f, y: %.6f, z: %.6f in robot frame",
-                   data.det->id, data.distance,
-                   data.robot_position.at<double>(0),
-                   data.robot_position.at<double>(1),
-                   data.robot_position.at<double>(2));
+    for (const auto &data : detection_data) {
+      RCLCPP_DEBUG(
+          this->get_logger(),
+          "Processing sorted tag id: %d, distance: %.6f, x: %.6f, y: %.6f, z: "
+          "%.6f in robot frame",
+          data.det->id, data.distance, data.robot_position.at<double>(0),
+          data.robot_position.at<double>(1), data.robot_position.at<double>(2));
 
       // Add to network tables data (sorted by distance)
       networktables_pose_data.push_back(image_capture_time.seconds());
@@ -469,8 +476,8 @@ void ApriltagsDetector::imageCallback(const sensor_msgs::msg::Image::SharedPtr m
 
       // Publish both camera frame and robot frame (sorted by distance)
       apriltags_cuda::add_tag_detection(
-          tag_detection_camera_array_msg, data.det->id, 
-          data.camera_position[0], data.camera_position[1], data.camera_position[2]);
+          tag_detection_camera_array_msg, data.det->id, data.camera_position[0],
+          data.camera_position[1], data.camera_position[2]);
       apriltags_cuda::add_tag_detection(tag_detection_array_msg, data.det->id,
                                         data.robot_position.at<double>(0),
                                         data.robot_position.at<double>(1),
@@ -493,8 +500,7 @@ void ApriltagsDetector::imageCallback(const sensor_msgs::msg::Image::SharedPtr m
 
   auto pub_image_start = std::chrono::high_resolution_clock::now();
   auto outgoing_msg =
-      cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgr_img)
-          .toImageMsg();
+      cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgr_img).toImageMsg();
   outgoing_msg->header.stamp = image_capture_time;
   outgoing_msg->header.frame_id = "apriltag_detections";
   image_pub_queue_->enqueue(outgoing_msg);
@@ -507,8 +513,8 @@ void ApriltagsDetector::imageCallback(const sensor_msgs::msg::Image::SharedPtr m
 
   if (measurement_mode_ && csv_file_.is_open()) {
     csv_file_ << latency_duration.nanoseconds() / 1000 << ","
-              << std::chrono::duration_cast<std::chrono::microseconds>(
-                     detend - detstart)
+              << std::chrono::duration_cast<std::chrono::microseconds>(detend -
+                                                                       detstart)
                      .count()
               << ","
               << std::chrono::duration_cast<std::chrono::microseconds>(
@@ -523,8 +529,8 @@ void ApriltagsDetector::imageCallback(const sensor_msgs::msg::Image::SharedPtr m
                      pub_image_end - pub_image_start)
                      .count()
               << ","
-              << std::chrono::duration_cast<std::chrono::microseconds>(
-                     nt_end - nt_start)
+              << std::chrono::duration_cast<std::chrono::microseconds>(nt_end -
+                                                                       nt_start)
                      .count()
               << ","
               << std::chrono::duration_cast<std::chrono::microseconds>(end -
@@ -574,7 +580,14 @@ void ApriltagsDetector::setup_measurement_params() {
   }
 }
 
-cv::Mat ApriltagsDetector::transformCameraToRobot(const cv::Vec3d& camera_point) const {
+cv::Mat ApriltagsDetector::transformCameraToRobot(
+    const cv::Vec3d &camera_point) const {
   cv::Mat camera_point_mat = cv::Mat(camera_point);
   return extrinsic_rotation_ * camera_point_mat + extrinsic_offset_;
+}
+
+void ApriltagsDetector::applyCpuPinningAndScheduling() {
+  auto logger = this->get_logger();
+  vision_utils::ProcessScheduler::applyCpuPinningAndScheduling(
+      pin_to_core_, priority_, &logger);
 }

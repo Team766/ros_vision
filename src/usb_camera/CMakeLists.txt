@@ -66,4 +66,21 @@ install(DIRECTORY include/
   DESTINATION include/)
 
 
+# Clang-format targets
+file(GLOB_RECURSE USB_CAMERA_SOURCE_FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/*/*.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/*/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/*.hpp
+)
+
+add_custom_target(format_all
+    COMMAND clang-format -i -style=Google ${USB_CAMERA_SOURCE_FILES}
+    COMMENT "Running clang-format on usb_camera source files"
+    VERBATIM
+)
+
+
 ament_package()
