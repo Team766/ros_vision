@@ -123,7 +123,7 @@ class CheckerboardCalibrationNode(Node):
 
         calib_results = {
             "matrix": mtx.tolist(),
-            "distortion": dist.tolist(),
+            "disto": dist.tolist(),
             "rmse_reprojection_error": float(total_error),
             "method": "checkerboard",
             "board_cols": self.board_cols,

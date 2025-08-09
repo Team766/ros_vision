@@ -119,7 +119,7 @@ class CharucoCalibrationNode(Node):
 
         calib_results = {
             "matrix": mtx.tolist(),
-            "distortion": dist.tolist(),
+            "disto": dist.tolist(),
             "rmse_reprojection_error": rms,
             "method": "charuco",
             "board_cols": self.board_cols,
