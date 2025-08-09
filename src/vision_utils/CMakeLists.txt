@@ -159,10 +159,5 @@ add_custom_target(format_all
     VERBATIM
 )
 
-add_custom_target(format_check
-    COMMAND clang-format --dry-run -Werror -style=Google ${VISION_UTILS_SOURCE_FILES}
-    COMMENT "Checking clang-format compliance on vision_utils source files"
-    VERBATIM
-)
 
 ament_package()

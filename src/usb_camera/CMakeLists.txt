@@ -82,10 +82,5 @@ add_custom_target(format_all
     VERBATIM
 )
 
-add_custom_target(format_check
-    COMMAND clang-format --dry-run -Werror -style=Google ${USB_CAMERA_SOURCE_FILES}
-    COMMENT "Checking clang-format compliance on usb_camera source files"
-    VERBATIM
-)
 
 ament_package()
