@@ -14,7 +14,7 @@
             "height": 800,
             "width": 1280,
             "frame_rate":100,
-            "api_preference": "ANY"
+            "api_preference": "V4L2"
         },
         "199": {
             "location": "center_front",
@@ -117,7 +117,7 @@
     },
     "performance_optimization": {
         "enable_optimizations": false,
-        "available_cpu_cores": [2, 3, 4, 5],
+        "available_cpu_cores": [4, 5],
         "default_priority": 80
     }
 }

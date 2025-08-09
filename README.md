@@ -215,14 +215,37 @@ EOF
 
 This will write a file called `convert.yaml` in the `/tmp` directory.  Now if you run `ros2 bag convert -i <path_to_ros_bag_directory> -o convert.yaml` a new directory called ros2_output will be created that contains mcap versions of the db3 files.  You can load this into foxglove directly.
 
-# Running In Optimized Mode
+# Running With CPU Pinning and Realtime Prority Scheduling
 
-If you want to run the pipeline with the lowest latency possible, then launch the pipeline using the `./optimized_launch.bsh` command.  This command will:
- - Set the clocks to max, by running `sudo jetson_clocks`
- - Launch the vision processes exclusively on cores 4 and 5
- - Launch the vision processes using the realtime FIFO scheduler at priority 90
+The system supports pinning the usb_camera and apriltags_cuda processes to different CPU's and adjusting the process priority with the realtime scheduler.  To enable this, edit the system_config.json file.  Find the section called performance_optimizations:
 
-This will give priority to the threads running the vision system and will generally give the lowest latency and therefore is recommended for most applications.
+```
+"performance_optimization": {
+      "enable_optimizations": false,
+      "available_cpu_cores": [4, 5],
+      "default_priority": 80
+  }
+```
+
+Set enable_optimizations to true, and modify the available_cpu_cores list to match your environment.  This will give priority to the threads running the vision system and will generally give the lowest latency and therefore is recommended for most applications.
+
+
+Currently the usb_camera_node and apriltags_cuda_node will be pinned to different CPU's.  So if you have available_cpu_cores set to [4,5] and have one camera, then the usb_camera_node will get pinned to core 4 and the apriltags_cuda_node will be pinned to core 5.  Note that if you have 2 cameras, you should put 4 cores in the available_cpu_cores list, otherwise multiple processes will get pinned to the same core, and the second one that gets pinned will get no cycles because of the realtime FIFO scheduling.
+
+You may also need to add the following line: `nvidia		-	rtprio		90` to /etc/security/limits.conf and reboot in order to have the right permissions to use the realtime scheduler.
+
+Rebuild the pipeline to pick up the newly edited config file `colcon build --packages-select vision_config_data`
+
+Launch the pipeline as normal, and you should see messages like the following:
+
+```
+[apriltags_cuda_node-2] [INFO] [1754440650.881978858] [apriltags_UC762]: Timing CSV path: 'apriltags_timing_20250805_173730.csv'
+[apriltags_cuda_node-2] [INFO] [1754440650.882137513] [apriltags_UC762]: Successfully pinned process to CPU core 5
+[apriltags_cuda_node-2] [INFO] [1754440650.882267336] [apriltags_UC762]: Successfully set real-time FIFO scheduling with priority 80
+[apriltags_cuda_node-2] [INFO] [1754440650.882301927] [apriltags_UC762]: CPU affinity verification: Successfully pinned to core 5
+[apriltags_cuda_node-2] [INFO] [1754440650.882324519] [apriltags_UC762]: Scheduling verification: FIFO policy with priority 80
+
+```
 
 ## Optional: Isolate CPU's
 
@@ -234,7 +257,7 @@ To do this:
 3. Add `isolcpus=4,5` to the end of the line.  Save the file.
 4. Reboot the machine `sudo reboot`
 
-When the device reboots cores 4 and 5 should show at 0% utilization.  When you launch the vision system using optimized_launch.bsh, you will see that cores 4 and 5 will start to be come active, and will go back to 0% utilization when the vision system is shutdown.
+When the device reboots cores 4 and 5 should show at 0% utilization.  When you launch the vision system you will see that cores 4 and 5 will start to be come active, and will go back to 0% utilization when the vision system is shutdown.
 
 # Running Timing Tests
 
