@@ -42,6 +42,48 @@ colcon test --packages-select apriltags_cuda
 colcon test-result --all
 ```
 
+### Versioned Release and Bundle Creation
+
+The workspace uses semantic versioning for deployment bundles while keeping individual package versions independent.
+
+#### Version Management
+```bash
+# Show current workspace version and package versions
+./version_manager.sh show
+
+# Manually set workspace version
+./version_manager.sh set 1.0.0
+
+# Bump workspace version
+./version_manager.sh bump patch  # 1.0.0 -> 1.0.1
+./version_manager.sh bump minor  # 1.0.1 -> 1.1.0
+./version_manager.sh bump major  # 1.1.0 -> 2.0.0
+```
+
+#### Release Process
+```bash
+# Complete release workflow (bump version, build, bundle, tag)
+./release.sh patch    # Patch release: 1.0.0 -> 1.0.1
+./release.sh minor    # Minor release: 1.0.1 -> 1.1.0  
+./release.sh major    # Major release: 1.1.0 -> 2.0.0
+
+# Build workspace and create versioned bundle (no version bump)
+./release.sh bundle
+
+# Create versioned bundle without building (fastest)
+./release.sh bundle-only
+
+# Show version information
+./release.sh version
+```
+
+#### Bundle Details
+- Creates `ros_vision_bundle-v{version}.tar.gz` (e.g., `ros_vision_bundle-v1.0.1.tar.gz`)
+- Contains complete install directory with all dependencies
+- Symlinks are dereferenced (copied as actual files) for portability
+- Includes all libraries, binaries, and configuration files needed for deployment
+- Workspace versioning is independent of individual package.xml versions
+
 ## Launch Commands
 
 ### Standard Launch
