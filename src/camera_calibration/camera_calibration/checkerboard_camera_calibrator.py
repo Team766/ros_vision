@@ -79,7 +79,7 @@ class CheckerboardCalibrationNode(Node):
             self.num_consecutive_frames_detected += 1
             cv2.drawChessboardCorners(img, (self.board_cols, self.board_rows), corners, ret)
 
-        if self.num_consecutive_frames_detected >=  self.calibrate_every_n_frames:
+        if self.num_consecutive_frames_detected >= self.calibrate_every_n_frames:
             self.get_logger().info("Chessboard detected successfully.")
             # Refine corner positions
             criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
