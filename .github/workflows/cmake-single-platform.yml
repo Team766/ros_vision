@@ -99,7 +99,7 @@ jobs:
     - name: Run tests
       run: |
         docker run --rm -v ${{ github.workspace }}:/workspace ros_vision:latest \
-          bash -c "cd /workspace && ./run_tests.sh"
+          bash -c "cd /workspace && ./run_tests.sh --cpu-only"
     
     - name: Upload test results
       uses: actions/upload-artifact@v4
