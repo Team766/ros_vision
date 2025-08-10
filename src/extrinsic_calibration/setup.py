@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'data_collector = extrinsic_calibration.data_collector:main',
+            'solver = extrinsic_calibration.solver:main',
         ],
     },
 )
