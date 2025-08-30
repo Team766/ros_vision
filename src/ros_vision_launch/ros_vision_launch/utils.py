@@ -48,14 +48,14 @@ def scan_for_cameras():
             serial = match.group(1)
             logger.debug(f"Extracted serial using Camera pattern: {serial}")
         else:
-            # Try Arducam pattern: extract the serial from UC### or similar
-            arducam_match = re.search(r"USB_Camera_([A-Z0-9]+)", entry)
+            # Try Arducam pattern: extract the serial from Camera_xxx or USB_Camera_xxx
+            arducam_match = re.search(r"(?:USB_)?Camera_([a-zA-Z0-9]+)", entry)
             if arducam_match:
                 serial = arducam_match.group(1)
                 logger.debug(f"Extracted serial using Arducam pattern: {serial}")
             else:
                 # Generic fallback: extract any alphanumeric identifier before -video-index0
-                generic_match = re.search(r"([A-Z0-9]+)-video-index0$", entry)
+                generic_match = re.search(r"([a-zA-Z0-9]+)-video-index0$", entry)
                 if generic_match:
                     serial = generic_match.group(1)
                     logger.debug(f"Extracted serial using generic pattern: {serial}")
