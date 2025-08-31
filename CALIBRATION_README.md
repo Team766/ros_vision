@@ -13,11 +13,13 @@ To run the intrinsic camera calibration you need a calibration board with either
 
 Unfortunately this is the biggest mistake you can make!
 
-You need to print this pattern as large as possible, and 8.5x11 is not large enough.  We use a board that is 48" wide by 36" long for calibration.  The cal target needs to be large and cover the entire frame of the camera during calibration.  Holding a small target close to the camera to acheive this effect can produce bad results and wildly wrong calibrations.  There is a nice write up on the [mrcal page](https://mrcal.secretsauce.net/docs-2.2/tour-choreography.html) that addresses many aspects of camera calibration and how to do it to produce the best results.
+You need to print this pattern as large as possible, and 8.5x11 is not large enough.  We use a board that is 48" wide by 36" long for calibration.  The cal target needs to be large and cover the entire frame of the camera during calibration.  A reasonable size for this is 24"x36".  
+
+I know what you are thinking - "I'll just print out a small 8.5x11 board and hold it close to the camera!".  Sigh.  Do not do this.  Holding a small target close to the camera to achieve this effect can produce bad results and wildly wrong calibrations.  There is a nice write up on the [mrcal page](https://mrcal.secretsauce.net/docs-2.2/tour-choreography.html) that addresses many aspects of camera calibration and how to do it properly to produce the best results.
 
 To print one of these you can use the calib.io generators and print it on a foam board from FedEx, or you can order a very professionally made one from [calib.io](https://calib.io/products/charuco-targets).
 
-If you only take one piece of advice in your life, take this one.  Print or but a large calibration target before starting calibration!  
+If you only take one piece of advice in your life, take this one.  Print out a large calibration target before starting calibration!  
 
 
 ### Start The Charuco Calibration Pipeline Using The Launcher
