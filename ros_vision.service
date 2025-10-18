@@ -1,0 +1,14 @@
+[Unit]
+Description=ros vision service
+After=network.target
+
+[Service]
+ExecStart=/home/nvidia/code/ros_vision/start_vision.bsh
+Restart=always
+User=root
+Group=root
+WorkingDirectory=/home/nvidia/code/ros_vision
+
+[Install]
+WantedBy=multi-user.target
+

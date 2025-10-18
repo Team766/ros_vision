@@ -91,6 +91,26 @@ This convenient script automatically sources all necessary environment files and
 ./start_vision.bsh --help
 ```
 
+### Install As A Ubuntu Service
+
+You can install the ros_vision system as a service that will run on each boot.  To install, run the install script as follows:
+
+```
+./install_service.bsh
+```
+
+You can verify that the service is working with:
+
+```
+systemctl status ros_vision.service
+```
+
+You can inspect logs with 
+```
+journalctl -u ros_vision.service
+```
+
+
 ### Start The System Manually
 
 Alternatively, you can launch manually:
