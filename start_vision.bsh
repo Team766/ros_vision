@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# ROS Vision System Launcher Script
+# Sources all necessary environment files and launches the vision system
+
+usage() {
+    echo "ROS Vision System Launcher"
+    echo ""
+    echo "Usage: $0 [options]"
+    echo ""
+    echo "Options:"
+    echo "  --help                       Show this help message"
+    echo ""
+    echo "Launch Arguments:"
+    echo "  log_level:=<level>           Logging level for all nodes (debug, info, warn, error, fatal) [default: info]"
+    echo "  measurement_mode:=<bool>     Enable timing measurement and CSV logging for apriltags node [default: false]"
+    echo "  timing_csv_path:=<path>      Path to timing CSV file for apriltags node [default: \"\"]"
+    echo "  enable_bag_recording:=<bool> Enable ROS bag recording of vision topics [default: true]"
+    echo ""
+    echo "Examples:"
+    echo "  $0"
+    echo "  $0 log_level:=debug"
+    echo "  $0 log_level:=info measurement_mode:=true timing_csv_path:=/tmp/timing.csv"
+    echo "  $0 enable_bag_recording:=false"
+}
+
+# Check for help flag
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    usage
+    exit 0
+fi
+
+echo "Starting ROS Vision System..."
+
+# Source ROS2 environment
+source /opt/ros/humble/setup.bash
+
+# Source build environment variables
+source build_env_vars.sh
+
+# Source local install environment
+source install/setup.bash
+
+# Launch the vision system with all provided arguments
+echo "Launching vision system..."
+ros2 launch ros_vision_launch launch_vision.py "$@"

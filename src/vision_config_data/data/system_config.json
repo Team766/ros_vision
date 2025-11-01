@@ -1,13 +1,120 @@
 {
     "camera_mounted_positions": {
-        "766": "right_front",
-        "cam13": "left_front",
-        "cam14": "right_front",
-        "cam11": "right_back",
-        "cam12": "left_back"
+        "cam11": {
+            "location": "right_front",
+            "format": "MJPG",
+            "height": 800,
+            "width": 1280,
+            "frame_rate": 100,
+            "api_preference": "V4L2"
+        },
+        "12": {
+            "location": "left_front",
+            "format": "MJPG",
+            "height": 800,
+            "width": 1280,
+            "frame_rate": 100,
+            "api_preference": "V4L2"
+        },
+        "199": {
+            "location": "left_back",
+            "format": "MJPG",
+            "height": 800,
+            "width": 1280,
+            "frame_rate": 100,
+            "api_preference": "V4L2"
+        },
+        "cam14": {
+            "location": "right_back",
+            "format": "MJPG",
+            "height": 800,
+            "width": 1280,
+            "frame_rate": 100,
+            "api_preference": "V4L2"
+        },
+        "test_camera": {
+            "location": "center_front",
+            "format": "MJPG",
+            "height": 480,
+            "width": 640,
+            "frame_rate": 30,
+            "api_preference": "ANY"
+        }
     },
     "extrinsics": {
+        "center_front": {
+            "rotation": [
+                [
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    -1.0,
+                    0.0,
+                    0.0
+                ],
+                [
+                    0.0,
+                    -1.0,
+                    0.0
+                ]
+            ],
+            "offset": [
+                0.0,
+                0.0,
+                0.0
+            ]
+        },
         "left_front": {
+            "rotation": [
+                [
+                    -0.5114678144454956,
+                    -0.00038687142659910023,
+                    0.8593024015426636
+                ],
+                [
+                    -0.8591272234916687,
+                    -0.019964156672358513,
+                    -0.5113725662231445
+                ],
+                [
+                    0.017353083938360214,
+                    -0.9998006224632263,
+                    0.009878653101623058
+                ]
+            ],
+            "offset": [
+                0.3370724618434906,
+                0.3085011839866638,
+                0.20647208392620087
+            ]
+        },
+        "right_front": {
+            "rotation": [
+                [
+                    0.5106198191642761,
+                    2.1480484065250494e-05,
+                    0.8598065376281738
+                ],
+                [
+                    -0.8596022129058838,
+                    0.021814445033669472,
+                    0.5104979276657104
+                ],
+                [
+                    -0.018745237961411476,
+                    -0.9997620582580566,
+                    0.011157353408634663
+                ]
+            ],
+            "offset": [
+                0.32332751154899597,
+                -0.3085011839866638,
+                0.22532792389392853
+            ]
+        },
+        "left_back": {
             "rotation": [
                 [
                     0.018362795934081078,
@@ -31,7 +138,7 @@
                 0.388673335313797
             ]
         },
-        "right_front": {
+        "right_back": {
             "rotation": [
                 [
                     -0.018342308700084686,
@@ -54,54 +161,30 @@
                 -0.3144337236881256,
                 0.27332666516304016
             ]
-        },
-        "left_back": {
-            "rotation": [
-                [
-                    0.5,
-                    -0.0,
-                    0.866025
-                ],
-                [
-                    -0.866025,
-                    0.0,
-                    0.5
-                ],
-                [
-                    -0.0,
-                    -1.0,
-                    0.0
-                ]
-            ],
-            "offset": [
-                -0.311,
-                0.311,
-                0.2159
-            ]
-        },
-        "right_back": {
-            "rotation": [
-                [
-                    -0.5,
-                    0.0,
-                    0.866025
-                ],
-                [
-                    -0.866025,
-                    0.0,
-                    -0.5
-                ],
-                [
-                    -0.0,
-                    -1.0,
-                    0.0
-                ]
-            ],
-            "offset": [
-                -0.311,
-                -0.311,
-                0.2159
-            ]
         }
+    },
+    "bag_recording": {
+        "output_directory": "/tmp/ros_vision_bags",
+        "max_bag_size": "1000000000",
+        "topics": [
+            "cameras/{location}/image_raw/compressed",
+            "apriltags/{location}/images/compressed",
+            "apriltags/{location}/pose",
+            "apriltags/{location}/pose_camera"
+        ],
+        "auto_split": true,
+        "max_duration": 300
+    },
+    "network_tables_config": {
+        "table_address": "10.7.66.2",
+        "table_name": "/SmartDashboard"
+    },
+    "performance_optimization": {
+        "enable_optimizations": false,
+        "available_cpu_cores": [
+            4,
+            5
+        ],
+        "default_priority": 80
     }
 }

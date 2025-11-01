@@ -1,106 +1,156 @@
 import json
 import os
-import re
-import sys
+import logging
+from datetime import datetime
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
+from launch.actions import DeclareLaunchArgument, LogInfo, ExecuteProcess
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
+from ros_vision_launch.utils import scan_for_cameras, get_config_data
+
+# Configure global logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("ros_vision_launch")
 
 BY_ID_PATH = "/dev/v4l/by-id/"
 """Path to the directory containing persistent V4L device symlinks by hardware ID."""
 
 
-def scan_for_cameras():
+def load_bag_recording_config():
     """
-    For each camera, find the /dev/video* device associated with its -index0 symlink,
-    and map the serial number to the actual video index (as integer).
-    """
-    if not os.path.exists(BY_ID_PATH):
-        raise Exception(f"Error: {BY_ID_PATH} does not exist.")
-
-    cameras_by_serial_id = {}
-    for entry in os.listdir(BY_ID_PATH):
-        # Only consider symlinks ending in -index0 (main video stream)
-        if "Camera" not in entry or not entry.endswith("index0"):
-            continue
-
-        # Extract the serial number from the symlink name
-        match = re.search(r"Camera_(\d+)", entry)
-        if not match:
-            continue  # Or raise error, up to you
-
-        serial = match.group(1)
-
-        # Resolve symlink to get the /dev/video* device path
-        device_path = os.path.realpath(os.path.join(BY_ID_PATH, entry))
-
-        # Robustly extract the number from /dev/videoN
-        vid_match = re.search(r"/dev/video(\d+)$", device_path)
-        if not vid_match:
-            continue  # Or raise error, up to you
-
-        video_index = int(vid_match.group(1))
-        cameras_by_serial_id[serial] = video_index
-
-    if not cameras_by_serial_id:
-        msg = "\n\nError: No camera devices found in by-id entries!\n\n"
-        msg += "This utility depends on finding the string 'Camera' somewhere in the filename.\n"
-        msg += f"We found these devices: {list(os.listdir(BY_ID_PATH))}\n\n"
-        msg += "To debug, try listing the contents of /dev/v4l/by-id and confirming that Camera is in the device filename.\n"
-        msg += "With an arducam, try resetting the serial number so that the Device Name is 'Camera': https://docs.arducam.com/UVC-Camera/Serial-Number-Tool-Guide/"
-        raise Exception(msg)
-
-    return cameras_by_serial_id
-
-
-def check_format(config_data):
-    """
-    Placeholder function to validate the format of the configuration data.
-
-    Args:
-        config_data (dict): The configuration data loaded from JSON.
+    Load bag recording configuration from system_config.json
 
     Returns:
-        None
-
-    Raises:
-        NotImplementedError: If validation is not yet implemented.
+        dict: Bag recording configuration, or empty dict if not found
     """
-    # TODO: implement this
-    pass
+    try:
+        data_path = os.path.join(
+            get_package_share_directory("vision_config_data"),
+            "data",
+            "system_config.json",
+        )
+
+        with open(data_path, "r") as f:
+            config_data = json.load(f)
+
+        bag_config = config_data.get("bag_recording", {})
+
+        if bag_config:
+            logger.info("Bag recording configuration loaded")
+        else:
+            logger.info("No bag recording configuration found")
+        return bag_config
+
+    except Exception as e:
+        logger.warning(f"Could not load bag recording config: {e}")
+        return {}
 
 
-def get_config_data(cameras_by_serial_id):
+def load_performance_optimization_config():
     """
-    Load and validate camera configuration data from the ROS package.
-
-    Args:
-        cameras_by_serial_id (dict): Mapping of camera serials (str) to video indices (int).
+    Load performance optimization configuration from system_config.json
 
     Returns:
-        dict: Mapping of camera serial numbers (str) to their mounted positions from config.
-
-    Raises:
-        Exception: If the configuration file is not found or required keys are missing.
+        dict: Performance optimization configuration, or empty dict if not found
     """
-    data_path = os.path.join(
-        get_package_share_directory("vision_config_data"), "data", "system_config.json"
+    try:
+        data_path = os.path.join(
+            get_package_share_directory("vision_config_data"),
+            "data",
+            "system_config.json",
+        )
+
+        with open(data_path, "r") as f:
+            config_data = json.load(f)
+
+        perf_config = config_data.get("performance_optimization", {})
+
+        if perf_config:
+            logger.info("Performance optimization configuration loaded")
+        else:
+            logger.info("No performance optimization configuration found")
+        return perf_config
+
+    except Exception as e:
+        logger.warning(f"Could not load performance optimization config: {e}")
+        return {}
+
+
+def create_bag_recording_node(bag_config, camera_locations):
+    """
+    Create a ROS bag recording node based on configuration
+
+    Args:
+        bag_config (dict): Bag recording configuration
+        camera_locations (dict): Mapping of serial->location for cameras
+
+    Returns:
+        ExecuteProcess: ROS bag recording process node with condition
+    """
+    if not bag_config:
+        raise Exception(
+            "Bag recording configuration is required when enable_bag_recording is true"
+        )
+
+    # Create output directory with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = os.path.join(
+        bag_config.get("output_directory", "/tmp/ros_vision_bags"),
+        f"ros_vision_{timestamp}",
     )
-    if not os.path.exists(data_path):
-        raise Exception(f"Error: unable to find system_config.json at {data_path}")
 
-    with open(data_path, "r") as f:
-        config_data = json.load(f)
+    # Build topic list
+    topics = []
 
-    check_format(config_data)
+    # Add configured topics, expanding for each camera location
+    configured_topics = bag_config.get("topics", [])
+    for topic in configured_topics:
+        if "{location}" in topic:
+            # Expand topic for each camera location
+            for location in set(camera_locations.values()):
+                topics.append(topic.format(location=location))
+        else:
+            topics.append(topic)
 
-    camera_mounted_positions = config_data["camera_mounted_positions"]
-    result = {}
-    for k, v in cameras_by_serial_id.items():
-        result[k] = camera_mounted_positions[k]
+    # Remove duplicates
+    topics = list(set(topics))
 
-    return result
+    # Build ros2 bag record command
+    cmd = ["ros2", "bag", "record"]
+
+    # Add output directory
+    cmd.extend(["-o", output_dir])
+
+    # Add max bag size if specified
+    max_size = bag_config.get("max_bag_size")
+    if max_size:
+        cmd.extend(["--max-bag-size", max_size])
+
+    # Add max duration if specified
+    max_duration = bag_config.get("max_duration")
+    if max_duration:
+        cmd.extend(["--max-bag-duration", str(max_duration)])
+
+    # Add topics
+    cmd.extend(topics)
+
+    logger.info(f"Creating bag recording node with {len(topics)} topics")
+    logger.info(f"Output directory: {output_dir}")
+    logger.debug(f"Topics to record: {topics}")
+
+    return ExecuteProcess(
+        cmd=cmd,
+        name="bag_recorder",
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("enable_bag_recording")),
+    )
 
 
 def generate_launch_description():
@@ -115,19 +165,97 @@ def generate_launch_description():
     Raises:
         Exception: If camera detection or configuration loading fails.
     """
-    # First we scan for cameras.
-    cameras_by_serial_id = scan_for_cameras()
-    print(f"Found cameras: {cameras_by_serial_id}")
+    logger.info("=== Starting ROS Vision Launch Configuration ===")
 
-    cameras_by_location = get_config_data(cameras_by_serial_id)
-    print(f"Found locations: {cameras_by_location}")
+    # Add launch arguments for logging control
+    log_level_arg = DeclareLaunchArgument(
+        "log_level",
+        default_value="info",
+        description="Logging level for all nodes (debug, info, warn, error, fatal)",
+    )
+    measurement_mode_arg = DeclareLaunchArgument(
+        "measurement_mode",
+        default_value="false",
+        description="Enable timing measurement and CSV logging for apriltags node.",
+    )
+    timing_csv_path_arg = DeclareLaunchArgument(
+        "timing_csv_path",
+        default_value="",
+        description="Path to timing CSV file for apriltags node.",
+    )
 
-    # For each camera found, set up the image processing pipeline.
-    nodes = []
-    for serial_id, camera_idx in cameras_by_serial_id.items():
-        cam_location = cameras_by_location[serial_id]
+    enable_bag_recording_arg = DeclareLaunchArgument(
+        "enable_bag_recording",
+        default_value="true",
+        description="Enable ROS bag recording of vision topics",
+    )
+
+    try:
+        # First we scan for cameras.
+        cameras_by_serial_id = scan_for_cameras()
+        logger.info(f"Detected cameras: {cameras_by_serial_id}")
+
+        cameras_by_location = get_config_data(cameras_by_serial_id)
+        logger.info(f"Camera location mapping: {cameras_by_location}")
+
+        # Load performance optimization configuration
+        perf_config = load_performance_optimization_config()
+        enable_optimizations = perf_config.get("enable_optimizations", False)
+        available_cpu_cores = perf_config.get("available_cpu_cores", [])
+        default_priority = perf_config.get("default_priority", 80)
+
+        if enable_optimizations:
+            logger.info(
+                f"Performance optimizations enabled. Available CPU cores: {available_cpu_cores}, Default priority: {default_priority}"
+            )
+        else:
+            logger.info("Performance optimizations disabled")
+
+        # For each camera found, set up the image processing pipeline.
+        nodes = [
+            log_level_arg,
+            measurement_mode_arg,
+            timing_csv_path_arg,
+            enable_bag_recording_arg,
+        ]
+
+        # Add launch info messages
         nodes.append(
-            Node(
+            LogInfo(
+                msg=f"Launching vision system with {len(cameras_by_serial_id)} cameras"
+            )
+        )
+
+        node_count = 0
+        camera_count = 0
+        for serial_id, camera_idx in cameras_by_serial_id.items():
+            cam_location = cameras_by_location[serial_id]
+            logger.info(
+                f"Setting up nodes for camera {serial_id} at location '{cam_location}'"
+            )
+
+            # Sequential CPU core assignment for camera and apriltags pairs
+            camera_pin_to_core = -1  # Default: no pinning
+            apriltags_pin_to_core = -1
+            priority = default_priority
+
+            if enable_optimizations and available_cpu_cores:
+                # Sequential assignment: camera gets core N*2, apriltags gets core N*2+1
+                camera_core_index = (camera_count * 2) % len(available_cpu_cores)
+                apriltags_core_index = (camera_count * 2 + 1) % len(available_cpu_cores)
+
+                camera_pin_to_core = available_cpu_cores[camera_core_index]
+                apriltags_pin_to_core = available_cpu_cores[apriltags_core_index]
+
+                logger.info(
+                    f"Assigning camera {serial_id} to CPU core {camera_pin_to_core}"
+                )
+                logger.info(
+                    f"Assigning AprilTags {serial_id} to CPU core {apriltags_pin_to_core}"
+                )
+
+            # USB Camera Node
+            camera_node = Node(
                 package="usb_camera",
                 executable="usb_camera_node",
                 name=f"camera_{serial_id}",
@@ -136,33 +264,80 @@ def generate_launch_description():
                         "camera_idx": camera_idx,
                         "camera_serial": serial_id,
                         "topic_name": f"cameras/{cam_location}/image_raw",
+                        "pin_to_core": camera_pin_to_core,
+                        "priority": priority,
                     },
                 ],
+                arguments=[
+                    "--ros-args",
+                    "--log-level",
+                    LaunchConfiguration("log_level"),
+                ],
+                output="screen",
             )
-        )
-        nodes.append(
-            Node(
+            nodes.append(camera_node)
+            node_count += 1
+            logger.debug(f"Added USB camera node for serial {serial_id}")
+
+            # AprilTags Node (assuming it will also support pin_to_core and priority parameters)
+            apriltags_node = Node(
                 package="apriltags_cuda",
                 executable="apriltags_cuda_node",
-                name=f"apriltags",
+                name=f"apriltags_{serial_id}",
                 parameters=[
                     {
                         "topic_name": f"cameras/{cam_location}/image_raw",
                         "camera_serial": serial_id,
-                        "publish_to_topic": f"apriltags/{cam_location}/images",
-                    },
+                        "publish_images_to_topic": f"apriltags/{cam_location}/images",
+                        "publish_pose_to_topic": f"apriltags/{cam_location}/pose",
+                        "measurement_mode": LaunchConfiguration("measurement_mode"),
+                        "timing_csv_path": LaunchConfiguration("timing_csv_path"),
+                        "pin_to_core": apriltags_pin_to_core,
+                        "priority": priority,
+                    }
                 ],
+                arguments=[
+                    "--ros-args",
+                    "--log-level",
+                    LaunchConfiguration("log_level"),
+                ],
+                output="screen",
             )
-        )
+            nodes.append(apriltags_node)
+            node_count += 1
+            logger.debug(f"Added AprilTags node for serial {serial_id}")
 
-    # Add the foxglove bridge.
-    nodes.append(
-        Node(
+            camera_count += 1
+
+        # Add the foxglove bridge.
+        foxglove_node = Node(
             package="foxglove_bridge",
             executable="foxglove_bridge",
             name="foxglove_bridge",
+            arguments=["--ros-args", "--log-level", LaunchConfiguration("log_level")],
             output="screen",
         )
-    )
+        nodes.append(foxglove_node)
+        node_count += 1
+        logger.info("Added Foxglove bridge node")
 
-    return LaunchDescription(nodes)
+        # Add bag recording node (conditionally executed based on launch argument)
+        bag_config = load_bag_recording_config()
+        bag_recorder = create_bag_recording_node(bag_config, cameras_by_location)
+        nodes.append(bag_recorder)
+        node_count += 1
+        logger.info(
+            "Added ROS bag recording node (conditional on enable_bag_recording argument)"
+        )
+
+        logger.info(
+            f"Launch configuration completed successfully with {node_count} nodes"
+        )
+        logger.info("=== ROS Vision Launch Configuration Complete ===")
+
+        return LaunchDescription(nodes)
+
+    except Exception as e:
+        logger.error(f"Failed to generate launch description: {str(e)}")
+        logger.error("=== ROS Vision Launch Configuration Failed ===")
+        raise

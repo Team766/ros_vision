@@ -3,8 +3,8 @@
 #include <iomanip>
 #include <iostream>
 
-#include "apriltag_gpu.h"
-#include "apriltag_utils.h"
+#include "apriltags_cuda/apriltag_gpu.h"
+#include "apriltags_cuda/apriltag_utils.h"
 #include "opencv2/opencv.hpp"
 
 extern "C" {

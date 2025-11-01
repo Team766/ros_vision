@@ -1,7 +1,7 @@
 #include <iomanip>
 #include <iostream>
 
-#include "apriltag_utils.h"
+#include "apriltags_cuda/apriltag_utils.h"
 #include "glog/logging.h"
 
 using namespace std;
