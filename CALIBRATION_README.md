@@ -30,8 +30,11 @@ The calibration needs a charuco board printed as DICT_4x4, e.g. like one generat
 - in a terminal type:
 
 ```
+cd ~/code/ros_vision
+source /opt/ros/humble/setup.bash
 source install/setup.bash
-ros2 launch ros_vision_launch charuco_calibrate.launch.py serial:=766 max_frames:=30 board_rows:=8 board_cols:=11 square_length:=0.015 marker_length:=0.011
+source ./build_env_vars.sh
+ros2 launch ros_vision_launch charuco_calibrate.launch.py serial:=766 max_frames:=30 board_rows:=9 board_cols:=11 square_length:=0.060 marker_length:=0.045
 ```
 
 The arguments are:
@@ -60,7 +63,10 @@ This utility requires you to set the dimensions of the chessboard, but wants the
 - in a terminal type:
 
 ```
+cd ~/code/ros_vision
+source /opt/ros/humble/setup.bash
 source install/setup.bash
+source ./build_env_vars.sh
 ros2 launch ros_vision_launch checkerboard_calibrate.launch.py serial:=766 max_frames:=30 board_rows:=7 board_cols:=10 square_length:=0.015
 ```
 
