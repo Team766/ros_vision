@@ -4,7 +4,7 @@ echo "Copying ros_vision.service to systemd"
 sudo cp ros_vision.service /etc/systemd/ros_vision.service
 
 echo "Enabling ros_vision.service to start on boot..."
-sudo systemctl enable ros_vision.service
+sudo systemctl enable /etc/systemd/ros_vision.service
 
 echo "Starting service..."
 sudo systemctl start ros_vision.service

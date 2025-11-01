@@ -8,7 +8,7 @@
             "frame_rate": 100,
             "api_preference": "V4L2"
         },
-        "cam12": {
+        "12": {
             "location": "left_front",
             "format": "MJPG",
             "height": 800,
@@ -16,7 +16,7 @@
             "frame_rate": 100,
             "api_preference": "V4L2"
         },
-        "cam13": {
+        "199": {
             "location": "left_back",
             "format": "MJPG",
             "height": 800,
