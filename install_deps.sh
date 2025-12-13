@@ -53,6 +53,8 @@ sudo apt-get install -y ros-humble-image-transport
 sudo apt-get install -y libtheora-dev libogg-dev pkg-config
 sudo apt-get install -y ros-humble-foxglove-bridge
 sudo apt-get install -y ros-humble-rosbag2-storage-mcap
+sudo apt install -y ros-humble-librealsense2
+sudo apt install -y ros-humble-diagnostic-updater
 
 
 # Check if clang-17 is installed.
