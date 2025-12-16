@@ -23,7 +23,7 @@ if [ ! -e "src/realsense-ros" ] ; then
     echo "Cloning realsense-ros into workspace"
     cd src
     # Pin to specific release tag (4.57.4) to avoid supply-chain risks from tracking mutable branch
-    git clone -b 4.57.4 https://github.com/IntelRealSense/realsense-ros.git
+    git clone -b 4.56.4 https://github.com/IntelRealSense/realsense-ros.git
     cd ..
 fi
 
