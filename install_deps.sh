@@ -22,7 +22,13 @@ install_tensorrt_x86() {
     fi
     sudo dpkg -i "$deb_file"
 	sudo cp /var/nv-tensorrt-local-repo-ubuntu2204-10.6.0-cuda-11.8/nv-tensorrt-local-2C8302C3-keyring.gpg /usr/share/keyrings/
+
+    # Remove any existing NVIDIA CUDA repo lists that might have newer TensorRT
+    sudo rm -f /etc/apt/sources.list.d/cuda*.list 2>/dev/null || true
+
     sudo apt-get update
+
+    # Install TensorRT from the local repo (10.6 for CUDA 11.8)
     sudo apt-get -y install tensorrt
 }
 
@@ -60,8 +66,14 @@ install_llvm() {
 
 export DEBIAN_FRONTEND=noninteractive
 
+arch=$(uname -m)
+
+# Remove NVIDIA online repos early to prevent wrong TensorRT version from being pulled
+# as a dependency during other apt installs
+sudo rm -f /etc/apt/sources.list.d/cuda*.list 2>/dev/null || true
+
 sudo apt update -y
-sudo apt install -y wget build-essential cmake python3-dev python3-numpy libprotobuf-dev protobuf-compiler
+sudo apt install -y wget build-essential cmake python3-dev python3-venv python3-numpy libprotobuf-dev protobuf-compiler
 sudo apt install -y libgoogle-glog-dev libgtest-dev libssh-dev libxrandr-dev libxinerama-dev libstdc++-12-dev
 sudo apt install -y golang
 
@@ -92,6 +104,7 @@ fi
 
 # Install TensorRT if needed
 if ! dpkg -l | grep -qi tensorrt; then
+    echo "$arch"
     if [ "$arch" = "x86_64" ]; then
         install_tensorrt_x86
     elif [ "$arch" = "aarch64" ] || [ "$arch" = "arm64" ]; then
@@ -110,7 +123,6 @@ if dpkg -l | grep -q cuda-toolkit-11-8; then
 	exit 0
 fi
 
-arch=$(uname -m)
 case $arch in
     x86_64)
         echo "Installing cuda on x86"

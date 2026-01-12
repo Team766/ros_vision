@@ -46,15 +46,9 @@ GamePieceDetector()
     // Game piece detector setup
     get_extrinsic_params();
 
-    auto start = std::chrono::high_resolution_clock::now();
-    // TODO: Initalize ModelInference object with engine file.
+    // TODO: Initialize ModelInference object with engine file.
     RCLCPP_INFO(this->get_logger(),
                 "ModelInference Initialization not implemented yet!");
-    
-    auto end = std::chrono::high_resolution_clock::now();
-    auto processing_time =
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-            .count();
   }
 
   void init() {
@@ -216,23 +210,10 @@ private:
   }
 
   void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
-
-    cv::Mat yuyv_img;
-
-    auto start = std::chrono::high_resolution_clock::now();
     cv::Mat bgr_img = cv_bridge::toCvCopy(msg, "bgr8")->image;
 
-    //TODO: Run the inference and publish the output to a message.
-
-    
-    // Publish the message to the viewer
-    // auto outgoing_msg =
-    //     cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgr_img)
-    //         .toImageMsg();
-    // outgoing_msg->header.stamp = this->now();
-    // outgoing_msg->header.frame_id = "apriltag_detections";
-    // image_pub_queue_->enqueue(outgoing_msg);
-
+    // TODO: Run the inference and publish the output to a message.
+    (void)bgr_img;  // Suppress unused warning until inference is implemented
   }
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscriber_;
@@ -246,6 +227,14 @@ private:
   std::string publish_to_topic_;
   std::string camera_serial_;
   std::string engine_file_;
+
+  // Extrinsic calibration
+  cv::Mat extrinsic_rotation_;
+  cv::Mat extrinsic_offset_;
+
+  // NetworkTables config
+  std::string table_address_;
+  std::string table_name_;
 };
 
 int main(int argc, char *argv[]) {

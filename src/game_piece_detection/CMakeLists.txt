@@ -27,6 +27,7 @@ find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(vision_utils REQUIRED)
 find_package(vision_deps REQUIRED)
+find_package(CUDAToolkit REQUIRED)
 
 set(VISION_DEPS_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../install/vision_deps)
 message(STATUS "VISION_DEPS_INSTALL_DIR is ${VISION_DEPS_INSTALL_DIR}")
@@ -36,6 +37,7 @@ include_directories(
   ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/ntcore
   ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/wpiutil
   ${VISION_DEPS_INSTALL_DIR}/json-install/include/
+  ${CUDAToolkit_INCLUDE_DIRS}
   include
 )
 
@@ -50,8 +52,35 @@ target_link_libraries(gamepiece_detection_node
     ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libntcore.so
     ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libwpiutil.so
     nvinfer
-    cudart)
+    CUDA::cudart)
 
-install(TARGETS gamepiece_detection_node DESTINATION lib/${PROJECT_NAME})
+# Detection test executable (standalone, no ROS dependencies)
+add_executable(detection_test src/detection_test.cpp)
+target_link_libraries(detection_test
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_core.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgproc.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_highgui.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgcodecs.so
+    nvinfer
+    CUDA::cudart)
+set_target_properties(detection_test PROPERTIES
+    BUILD_RPATH "${VISION_DEPS_INSTALL_DIR}/opencv-install/lib"
+    INSTALL_RPATH "${VISION_DEPS_INSTALL_DIR}/opencv-install/lib"
+    INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+# Inference benchmark executable
+add_executable(inference_benchmark src/inference_benchmark.cpp)
+target_link_libraries(inference_benchmark
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_core.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgproc.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgcodecs.so
+    nvinfer
+    CUDA::cudart)
+set_target_properties(inference_benchmark PROPERTIES
+    BUILD_RPATH "${VISION_DEPS_INSTALL_DIR}/opencv-install/lib"
+    INSTALL_RPATH "${VISION_DEPS_INSTALL_DIR}/opencv-install/lib"
+    INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+install(TARGETS gamepiece_detection_node detection_test inference_benchmark DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

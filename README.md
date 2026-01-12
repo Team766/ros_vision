@@ -88,15 +88,19 @@ Once the connection is opened you should see the two images displayed, one from 
 - Run the docker build command in the current directory as follows: `docker build -t ros_vision:latest .`
 
 - When the docker build completes, run the docker in interactive mode with the following command: 
+
 ```bash
-docker run -it -v/tmp:/tmp --runtime=nvidia --gpus all -p 8765:8765 -v /dev/v4l/:/dev/v4l  --device /dev/video0 ros_vision:latest /bin/bash
+ docker run -it -v/tmp:/tmp --runtime=nvidia --gpus all -p 8765:8765 -v /dev/v4l/:/dev/v4l  --user $(id -u):$(id -g) -e USER=$USER -e HOME=$HOME -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro -v /home/$USER:/home/$USER ros_vision:latest /bin/bash
 ```
-This command maps the /tmp drive on the host to the /tmp drive in the docker container.
 
-- At the container cmd line:
+This command maps your home directory on the host to the container, and sets your user id and group id to the same as on the host.  This allows you to run as your own user id inside the container instead of root.
+
+If you want to connect a camera and try some testing then add the tag `--device /dev/video0` to the command.
+
+Now you can build just like you would outside the container:
 
 ```
-cd /tmp
+cd ~
 mkdir code
 cd code
 git clone git@github.com:Team766/ros_vision.git
