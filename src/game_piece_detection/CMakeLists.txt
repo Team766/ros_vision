@@ -83,4 +83,8 @@ set_target_properties(inference_benchmark PROPERTIES
 
 install(TARGETS gamepiece_detection_node detection_test inference_benchmark DESTINATION lib/${PROJECT_NAME})
 
+# Install data and models directories
+install(DIRECTORY data/ DESTINATION share/${PROJECT_NAME}/data)
+install(DIRECTORY models/ DESTINATION share/${PROJECT_NAME}/models)
+
 ament_package()
