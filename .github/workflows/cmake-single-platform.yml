@@ -31,6 +31,11 @@ jobs:
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
           sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/graalvm/
+          sudo rm -rf /usr/local/.ghcup/
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/local/share/chromium
+          sudo rm -rf /usr/local/lib/node_modules
           sudo apt-get clean
           docker system prune -af
 
@@ -60,14 +65,19 @@ jobs:
         load: true
         tags: ros_vision:latest
         cache-from: type=local,src=/tmp/.buildx-cache
-        cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+        cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=min
         build-args: |
           BUILDKIT_INLINE_CACHE=1
 
     - name: Move cache
       run: |
         rm -rf /tmp/.buildx-cache
-        mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+        if [ -d /tmp/.buildx-cache-new ]; then
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+        fi
+
+    - name: Check disk space after Docker build
+      run: df . -h
 
     - name: Restore build cache
       uses: actions/cache@v4
