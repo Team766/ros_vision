@@ -1,7 +1,7 @@
 #include <stdint.h>
 
-#include "cuda_frc971.h"
-#include "threshold.h"
+#include "apriltags_cuda/cuda_frc971.h"
+#include "apriltags_cuda/threshold.h"
 
 namespace frc971::apriltag {
 namespace {

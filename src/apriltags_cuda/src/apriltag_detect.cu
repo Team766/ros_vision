@@ -12,10 +12,10 @@
 #include <cub/iterator/transform_input_iterator.cuh>
 #include <vector>
 
-#include "apriltag_gpu.h"
+#include "apriltags_cuda/apriltag_gpu.h"
 #include "glog/logging.h"
-#include "labeling_allegretti_2019_BKE.h"
-#include "threshold.h"
+#include "apriltags_cuda/labeling_allegretti_2019_BKE.h"
+#include "apriltags_cuda/threshold.h"
 
 DEFINE_int32(debug_blob_index, 4096, "Blob to print out for");
 

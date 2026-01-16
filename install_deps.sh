@@ -95,6 +95,7 @@ sudo apt-get install -y libboost-python-dev libboost-system-dev libboost-thread-
 sudo apt-get install -y ros-humble-image-transport
 sudo apt-get install -y libtheora-dev libogg-dev pkg-config
 sudo apt-get install -y ros-humble-foxglove-bridge
+sudo apt-get install -y ros-humble-rosbag2-storage-mcap
 
 
 # Check if clang-17 is installed.

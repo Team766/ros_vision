@@ -1,0 +1,93 @@
+(.venv) cpadwick@MSI:~/code/ros_vision/src/extrinsic_calibration/extrinsic_calibration$ python solver.py solver_config.yaml
+Camera Info:
+Camera ID: cam11
+Intrinsic Matrix:
+[[895.41974   0.      647.50696]
+ [  0.      893.8943  408.87616]
+ [  0.        0.        1.     ]]
+Distortion Coefficients:
+[ 0.00589947  0.03938959 -0.00610125 -0.00060823 -0.14638592]
+Camera ID: cam12
+Intrinsic Matrix:
+[[890.22516   0.      641.9891 ]
+ [  0.      887.45593 405.9263 ]
+ [  0.        0.        1.     ]]
+Distortion Coefficients:
+[ 0.02246151 -0.05464549 -0.00114664 -0.00141577 -0.00223025]
+/home/cpadwick/code/ros_vision/src/extrinsic_calibration/extrinsic_calibration/solver.py:254: UserWarning: The use of `x.T` on tensors of dimension other than 2 to reverse their shape is deprecated and it will throw an error in a future release. Consider `x.mT` to transpose batches of matrices or `x.permute(*torch.arange(x.ndim - 1, -1, -1))` to reverse the dimensions of a tensor. (Triggered internally at /pytorch/aten/src/ATen/native/TensorShape.cpp:4421.)
+  X_cam = R_cam @ at_camera_coords.T + trans
+
+
+-------------------------------------------------
+Initial Loss: 0.172304, RMSE: 4.150954
+Initial Parameters:
+Camera ID: cam11
+Rotations: tensor([ 0.,  0., 30.], requires_grad=True)
+Translation: tensor([ 0.3302, -0.3048,  0.2159], requires_grad=True)
+Camera ID: cam12
+Rotations: tensor([  0.,   0., -30.], requires_grad=True)
+Translation: tensor([0.3302, 0.3048, 0.2159], requires_grad=True)
+Starting optimization...
+-------------------------------------------------
+Optimizing: 100%|██████████████████████████████████████████████████████| 500/500 [03:04<00:00,  2.71it/s, loss=0.036404]
+
+-------------------------------------------------
+Final Parameters:
+Final Loss: 0.036404, RMSE: 1.907971
+Camera ID: cam11
+Rotations: tensor([ 1.2500e+00, -1.2295e-03,  3.0705e+01], requires_grad=True)
+Translation: tensor([ 0.3233, -0.3085,  0.2253], requires_grad=True)
+{
+    "rotation": [
+        [
+            0.5106198191642761,
+            2.1480484065250494e-05,
+            0.8598065376281738
+        ],
+        [
+            -0.8596022129058838,
+            0.021814445033669472,
+            0.5104979276657104
+        ],
+        [
+            -0.018745237961411476,
+            -0.9997620582580566,
+            0.011157353408634663
+        ]
+    ],
+    "offset": [
+        0.32332751154899597,
+        -0.3085011839866638,
+        0.22532792389392853
+    ]
+}
+
+
+
+Camera ID: cam12
+Rotations: tensor([-1.1439e+00,  2.2165e-02, -3.0762e+01], requires_grad=True)
+Translation: tensor([0.3371, 0.3085, 0.2065], requires_grad=True)
+{
+    "rotation": [
+        [
+            -0.5114678144454956,
+            -0.00038687142659910023,
+            0.8593024015426636
+        ],
+        [
+            -0.8591272234916687,
+            -0.019964156672358513,
+            -0.5113725662231445
+        ],
+        [
+            0.017353083938360214,
+            -0.9998006224632263,
+            0.009878653101623058
+        ]
+    ],
+    "offset": [
+        0.3370724618434906,
+        0.3085011839866638,
+        0.20647208392620087
+    ]
+}

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 set(CMAKE_CUDA_COMPILER /usr/bin/clang++-17 CACHE STRING "CUDA compiler" FORCE)
 set(CMAKE_CXX_COMPILER /usr/bin/clang++-17 CACHE STRING "CXX compiler" FORCE)
 
-project(apriltags_cuda LANGUAGES CUDA CXX)
+project(apriltags_cuda LANGUAGES C CUDA CXX)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -16,6 +16,11 @@ add_compile_options(-Wno-unused-parameter)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
+endif()
+
+# Enable testing by default
+if(NOT DEFINED BUILD_TESTING)
+    set(BUILD_TESTING ON)
 endif()
 
 if(CMAKE_BUILD_TYPE MATCHES "Debug")
@@ -37,6 +42,8 @@ find_package(image_transport REQUIRED)
 find_package(vision_utils REQUIRED)
 find_package(vision_deps REQUIRED)
 find_package(glog REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
 #message(STATUS "prefix is ${CMAKE_INSTALL_PREFIX}")
 set(VISION_DEPS_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../install/vision_deps)
@@ -56,6 +63,11 @@ include_directories(
   ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag/common
 )
 
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/TagDetection.msg"
+  "msg/TagDetectionArray.msg"
+)
+
 set(CUDA_LIB_SOURCES 
     src/apriltag_detect.cu 
     src/apriltag_gpu.cu
@@ -65,22 +77,28 @@ set(CUDA_LIB_SOURCES
     src/points.cu
     src/threshold.cu
     src/apriltag_utils.cu
+    src/apriltags_cuda_detector.cu
     src/DoubleArraySender.cpp
-    src/DoubleValueSender.cpp
-    src/IntegerValueSender.cpp
-    src/BooleanValueSender.cpp
-    src/IntegerArraySender.cpp
     src/NetworkTablesUtil.cpp)
 
 # Add a library with the above source files
-add_library(apriltag_cuda ${CUDA_LIB_SOURCES})
+add_library(apriltags_cuda_core SHARED ${CUDA_LIB_SOURCES})
 
-#add_dependencies(apriltag_cuda vision_deps_external vision_utils)
+# Add dependencies for the core library since it now includes ROS-dependent code
+ament_target_dependencies(apriltags_cuda_core rclcpp sensor_msgs cv_bridge image_transport vision_deps vision_utils rosidl_default_runtime)
+
+#add_dependencies(apriltags_cuda_core vision_deps_external vision_utils)
 
 add_executable(apriltags_cuda_node src/apriltags_cuda_node.cu)
-ament_target_dependencies(apriltags_cuda_node rclcpp sensor_msgs cv_bridge image_transport vision_deps vision_utils)
+target_include_directories(apriltags_cuda_node PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_dependencies(apriltags_cuda_node ${PROJECT_NAME}__rosidl_typesupport_cpp)
+
+ament_target_dependencies(apriltags_cuda_node rclcpp sensor_msgs cv_bridge image_transport vision_deps vision_utils rosidl_default_runtime)
 target_link_libraries(apriltags_cuda_node
-    apriltag_cuda
+    apriltags_cuda_core
+    apriltags_cuda__rosidl_typesupport_cpp
     ${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib/libapriltag.so
     ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_core.so
     ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgproc.so
@@ -97,7 +115,162 @@ set_target_properties(apriltags_cuda_node PROPERTIES
     INSTALL_RPATH_USE_LINK_PATH TRUE
 )
 
-install(TARGETS apriltags_cuda_node apriltag_cuda
+install(TARGETS apriltags_cuda_node
     DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS apriltags_cuda_core
+    LIBRARY DESTINATION lib)
+
+# Install test data
+install(DIRECTORY test/data/
+    DESTINATION share/${PROJECT_NAME}/test/data)
+
+# Testing
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  
+  ament_add_gtest(gpu_detector_test test/gpu_detector_test.cu)
+  target_include_directories(gpu_detector_test PRIVATE 
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${VISION_DEPS_INSTALL_DIR}/CCCL-install/include/cub
+    ${VISION_DEPS_INSTALL_DIR}/CCCL-install/include/libcudacxx/include
+    ${VISION_DEPS_INSTALL_DIR}/CCCL-install/include/thrust
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/include/opencv4
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/ntcore
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/wpiutil
+    ${VISION_DEPS_INSTALL_DIR}/json-install/include/
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag/common
+  )
+  ament_target_dependencies(gpu_detector_test 
+    rclcpp 
+    sensor_msgs 
+    cv_bridge 
+    image_transport 
+    vision_deps 
+    vision_utils 
+    rosidl_default_runtime
+    ament_index_cpp
+  )
+  target_link_libraries(gpu_detector_test
+    apriltags_cuda_core
+    apriltags_cuda__rosidl_typesupport_cpp
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib/libapriltag.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_core.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgproc.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_highgui.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_videoio.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgcodecs.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libntcore.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libwpiutil.so
+    glog::glog
+  )
+  set_target_properties(gpu_detector_test PROPERTIES
+    BUILD_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"
+    INSTALL_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"
+    INSTALL_RPATH_USE_LINK_PATH TRUE
+  )
+  
+  # Set working directory for test to find data files
+  set_tests_properties(gpu_detector_test PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  
+  # Add ApriltagsDetector transformation integration test
+  ament_add_gtest(apriltag_detector_transform_test test/apriltag_detector_transform_test.cu)
+  target_include_directories(apriltag_detector_transform_test PRIVATE 
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/include/opencv4
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/ntcore
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/wpiutil
+    ${VISION_DEPS_INSTALL_DIR}/json-install/include/
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag/common
+  )
+  ament_target_dependencies(apriltag_detector_transform_test 
+    rclcpp 
+    sensor_msgs 
+    cv_bridge 
+    image_transport 
+    vision_utils 
+    rosidl_default_runtime
+    ament_index_cpp
+  )
+  target_link_libraries(apriltag_detector_transform_test
+    apriltags_cuda_core
+    apriltags_cuda__rosidl_typesupport_cpp
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib/libapriltag.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_core.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgproc.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libntcore.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libwpiutil.so
+    glog::glog
+  )
+  set_target_properties(apriltag_detector_transform_test PROPERTIES
+    BUILD_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"
+    INSTALL_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"
+    INSTALL_RPATH_USE_LINK_PATH TRUE
+  )
+
+  # Add detection sorting test
+  ament_add_gtest(detection_sorting_test test/detection_sorting_test.cu)
+  target_include_directories(detection_sorting_test PRIVATE 
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/include/opencv4
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/ntcore
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/include/wpiutil
+    ${VISION_DEPS_INSTALL_DIR}/json-install/include/
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/include/apriltag/common
+  )
+  ament_target_dependencies(detection_sorting_test 
+    rclcpp 
+    sensor_msgs 
+    cv_bridge 
+    image_transport 
+    vision_utils 
+    rosidl_default_runtime
+    ament_index_cpp
+  )
+  target_link_libraries(detection_sorting_test
+    apriltags_cuda_core
+    apriltags_cuda__rosidl_typesupport_cpp
+    ${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib/libapriltag.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_core.so
+    ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgproc.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libntcore.so
+    ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libwpiutil.so
+    glog::glog
+  )
+  set_target_properties(detection_sorting_test PROPERTIES
+    BUILD_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"
+    INSTALL_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"
+    INSTALL_RPATH_USE_LINK_PATH TRUE
+  )
+endif()
+
+ament_export_dependencies(rosidl_default_runtime)
+
+# Clang-format targets  
+file(GLOB_RECURSE APRILTAGS_CUDA_SOURCE_FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cu
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/*/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/*/*.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/*.cu
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/*.h
+)
+
+add_custom_target(format_all
+    COMMAND clang-format -i -style=Google ${APRILTAGS_CUDA_SOURCE_FILES}
+    COMMENT "Running clang-format on apriltags_cuda source files"
+    VERBATIM
+)
+
 
 ament_package()

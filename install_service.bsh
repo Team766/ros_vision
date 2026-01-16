@@ -1,0 +1,12 @@
+#!/bin/bash
+
+echo "Copying ros_vision.service to systemd"
+sudo cp ros_vision.service /etc/systemd/ros_vision.service
+
+echo "Enabling ros_vision.service to start on boot..."
+sudo systemctl enable /etc/systemd/ros_vision.service
+
+echo "Starting service..."
+sudo systemctl start ros_vision.service
+sudo systemctl status ros_vision.service
+
