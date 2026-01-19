@@ -141,6 +141,36 @@ class ModelInference {
   size_t getInputSize() const { return m_input_size_; }
   size_t getOutputSize() const { return m_output_size_; }
 
+  // Semantic dimension getters for YOLO models
+  // Input tensor shape: [batch, channels, height, width]
+  int getInputChannels() const { return m_input_dims_.d[1]; }
+  int getInputHeight() const { return m_input_dims_.d[2]; }
+  int getInputWidth() const { return m_input_dims_.d[3]; }
+
+  // Output tensor shape: [batch, 4+num_classes, num_predictions]
+  // Where 4 = bbox coordinates (x, y, w, h)
+  int getNumClasses() const { return m_output_dims_.d[1] - 4; }
+  int getNumPredictions() const { return m_output_dims_.d[2]; }
+
+  void printEngineInfo() const {
+    std::cout << "=== TensorRT Engine Info ===" << std::endl;
+    std::cout << "Input shape: [";
+    for (int i = 0; i < m_input_dims_.nbDims; i++) {
+      std::cout << m_input_dims_.d[i] << (i < m_input_dims_.nbDims - 1 ? ", " : "");
+    }
+    std::cout << "]" << std::endl;
+    std::cout << "  Channels: " << getInputChannels() << std::endl;
+    std::cout << "  Height: " << getInputHeight() << std::endl;
+    std::cout << "  Width: " << getInputWidth() << std::endl;
+    std::cout << "Output shape: [";
+    for (int i = 0; i < m_output_dims_.nbDims; i++) {
+      std::cout << m_output_dims_.d[i] << (i < m_output_dims_.nbDims - 1 ? ", " : "");
+    }
+    std::cout << "]" << std::endl;
+    std::cout << "  Num classes: " << getNumClasses() << std::endl;
+    std::cout << "  Num predictions: " << getNumPredictions() << std::endl;
+  }
+
  private:
   std::unique_ptr<nvinfer1::IRuntime> m_runtime_;
   std::unique_ptr<nvinfer1::ICudaEngine> m_engine_;

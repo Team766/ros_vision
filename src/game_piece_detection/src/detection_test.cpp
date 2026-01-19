@@ -1,6 +1,8 @@
 #include <opencv2/opencv.hpp>
+#include <nlohmann/json.hpp>
 #include <filesystem>
 #include <iostream>
+#include <fstream>
 #include <chrono>
 #include <vector>
 #include <string>
@@ -9,45 +11,57 @@
 #include "game_piece_detection/yolo_detection.h"
 
 namespace fs = std::filesystem;
+using json = nlohmann::json;
 
-constexpr int MODEL_INPUT_WIDTH = 640;
-constexpr int MODEL_INPUT_HEIGHT = 640;
-constexpr int MODEL_CHANNELS = 3;
 constexpr float CONF_THRESHOLD = 0.25f;
 constexpr float IOU_THRESHOLD = 0.45f;
 
 /**
  * Preprocess an image for YOLOv11 inference.
- * - Resize to 640x640
- * - Convert BGR to RGB
+ * - Resize to model input size
+ * - Convert BGR to RGB (if 3 channels) or grayscale
  * - Normalize to [0, 1]
  * - Convert to NCHW format (channels first)
  *
  * @param img Input BGR image (any size)
- * @param output Pre-allocated buffer for output (size: 3 * 640 * 640)
+ * @param output Pre-allocated buffer for output
+ * @param input_width Model input width
+ * @param input_height Model input height
+ * @param input_channels Number of input channels (1 or 3)
  */
-void preprocess_image(const cv::Mat& img, float* output) {
+void preprocess_image(const cv::Mat& img, float* output,
+                      int input_width, int input_height, int input_channels) {
   // Resize to model input size
   cv::Mat resized;
-  cv::resize(img, resized, cv::Size(MODEL_INPUT_WIDTH, MODEL_INPUT_HEIGHT));
+  cv::resize(img, resized, cv::Size(input_width, input_height));
 
-  // Convert BGR to RGB
-  cv::Mat rgb;
-  cv::cvtColor(resized, rgb, cv::COLOR_BGR2RGB);
+  cv::Mat processed;
+  if (input_channels == 3) {
+    // Convert BGR to RGB
+    cv::cvtColor(resized, processed, cv::COLOR_BGR2RGB);
+  } else if (input_channels == 1) {
+    // Convert to grayscale
+    cv::cvtColor(resized, processed, cv::COLOR_BGR2GRAY);
+  } else {
+    processed = resized;
+  }
 
   // Convert to float and normalize to [0, 1]
   cv::Mat float_img;
-  rgb.convertTo(float_img, CV_32FC3, 1.0 / 255.0);
+  int cv_type = (input_channels == 1) ? CV_32FC1 : CV_32FC3;
+  processed.convertTo(float_img, cv_type, 1.0 / 255.0);
 
   // Convert from HWC to CHW (NCHW with batch=1)
-  // Output layout: [R channel (640*640), G channel (640*640), B channel (640*640)]
-  std::vector<cv::Mat> channels(3);
-  cv::split(float_img, channels);
-
-  size_t channel_size = MODEL_INPUT_WIDTH * MODEL_INPUT_HEIGHT;
-  memcpy(output, channels[0].data, channel_size * sizeof(float));
-  memcpy(output + channel_size, channels[1].data, channel_size * sizeof(float));
-  memcpy(output + 2 * channel_size, channels[2].data, channel_size * sizeof(float));
+  size_t channel_size = input_width * input_height;
+  if (input_channels == 1) {
+    memcpy(output, float_img.data, channel_size * sizeof(float));
+  } else {
+    std::vector<cv::Mat> channels(input_channels);
+    cv::split(float_img, channels);
+    for (int c = 0; c < input_channels; ++c) {
+      memcpy(output + c * channel_size, channels[c].data, channel_size * sizeof(float));
+    }
+  }
 }
 
 /**
@@ -57,10 +71,14 @@ void preprocess_image(const cv::Mat& img, float* output) {
  * @param detections Detections in original image coordinates
  */
 void draw_detections(cv::Mat& img, const std::vector<YoloDetection>& detections) {
-  // Colors for different classes (BGR format)
+  // Generate colors for classes
   const std::vector<cv::Scalar> colors = {
-      cv::Scalar(0, 255, 0),   // algae - green
-      cv::Scalar(0, 165, 255)  // coral - orange
+      cv::Scalar(0, 255, 0),    // green
+      cv::Scalar(0, 165, 255),  // orange
+      cv::Scalar(255, 0, 0),    // blue
+      cv::Scalar(0, 255, 255),  // yellow
+      cv::Scalar(255, 0, 255),  // magenta
+      cv::Scalar(255, 255, 0),  // cyan
   };
 
   for (const auto& det : detections) {
@@ -99,26 +117,84 @@ void draw_detections(cv::Mat& img, const std::vector<YoloDetection>& detections)
 }
 
 void print_usage(const char* prog_name) {
-  std::cout << "Usage: " << prog_name << " <engine_file> <image_dir> [output_dir]" << std::endl;
+  std::cout << "Usage: " << prog_name << " --config <config_file> --images <image_dir> [options]" << std::endl;
   std::cout << std::endl;
   std::cout << "Arguments:" << std::endl;
-  std::cout << "  engine_file  Path to TensorRT engine file (.engine)" << std::endl;
-  std::cout << "  image_dir    Directory containing test images" << std::endl;
-  std::cout << "  output_dir   Optional: Directory to save annotated images" << std::endl;
+  std::cout << "  --config FILE    Path to system_config.json" << std::endl;
+  std::cout << "  --images DIR     Directory containing test images" << std::endl;
+  std::cout << "  --output DIR     Optional: Directory to save annotated images" << std::endl;
+  std::cout << "  --engine FILE    Optional: Override engine file from config" << std::endl;
   std::cout << std::endl;
   std::cout << "Example:" << std::endl;
-  std::cout << "  " << prog_name << " model.engine /path/to/images /path/to/output" << std::endl;
+  std::cout << "  " << prog_name << " --config system_config.json --images /path/to/images" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
-  if (argc < 3) {
+  std::string config_path;
+  std::string image_dir;
+  std::string output_dir;
+  std::string engine_override;
+
+  // Parse command line arguments
+  for (int i = 1; i < argc; i++) {
+    std::string arg = argv[i];
+    if (arg == "--config" && i + 1 < argc) {
+      config_path = argv[++i];
+    } else if (arg == "--images" && i + 1 < argc) {
+      image_dir = argv[++i];
+    } else if (arg == "--output" && i + 1 < argc) {
+      output_dir = argv[++i];
+    } else if (arg == "--engine" && i + 1 < argc) {
+      engine_override = argv[++i];
+    } else if (arg == "--help" || arg == "-h") {
+      print_usage(argv[0]);
+      return 0;
+    }
+  }
+
+  if (config_path.empty() || image_dir.empty()) {
     print_usage(argv[0]);
     return 1;
   }
 
-  std::string engine_path = argv[1];
-  std::string image_dir = argv[2];
-  std::string output_dir = (argc > 3) ? argv[3] : "";
+  // Load configuration
+  if (!fs::exists(config_path)) {
+    std::cerr << "Error: Config file not found: " << config_path << std::endl;
+    return 1;
+  }
+
+  std::ifstream config_file(config_path);
+  json config;
+  try {
+    config_file >> config;
+  } catch (const json::parse_error& e) {
+    std::cerr << "Error parsing config file: " << e.what() << std::endl;
+    return 1;
+  }
+
+  // Extract game_piece_detection configuration
+  if (!config.contains("game_piece_detection")) {
+    std::cerr << "Error: Config file missing 'game_piece_detection' section" << std::endl;
+    return 1;
+  }
+
+  auto& gpd_config = config["game_piece_detection"];
+
+  std::string engine_path = engine_override.empty()
+      ? gpd_config.value("engine_file", "")
+      : engine_override;
+  int config_input_channels = gpd_config.value("input_channels", 3);
+  std::vector<std::string> class_names;
+  if (gpd_config.contains("class_names")) {
+    for (const auto& name : gpd_config["class_names"]) {
+      class_names.push_back(name.get<std::string>());
+    }
+  }
+
+  if (engine_path.empty()) {
+    std::cerr << "Error: No engine file specified in config or command line" << std::endl;
+    return 1;
+  }
 
   // Verify paths exist
   if (!fs::exists(engine_path)) {
@@ -144,22 +220,41 @@ int main(int argc, char* argv[]) {
   auto load_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_load - start_load).count();
   std::cout << "Engine loaded in " << load_time << " ms" << std::endl;
 
-  // Print model info
-  auto input_dims = model.getInputDims();
-  auto output_dims = model.getOutputDims();
-  std::cout << "Input shape: [";
-  for (int i = 0; i < input_dims.nbDims; i++) {
-    std::cout << input_dims.d[i] << (i < input_dims.nbDims - 1 ? ", " : "");
-  }
-  std::cout << "]" << std::endl;
-  std::cout << "Output shape: [";
-  for (int i = 0; i < output_dims.nbDims; i++) {
-    std::cout << output_dims.d[i] << (i < output_dims.nbDims - 1 ? ", " : "");
-  }
-  std::cout << "]" << std::endl;
+  // Print model info from engine
+  model.printEngineInfo();
 
-  // Allocate buffers
-  size_t input_size = MODEL_CHANNELS * MODEL_INPUT_WIDTH * MODEL_INPUT_HEIGHT;
+  // Get dimensions from engine
+  int input_channels = model.getInputChannels();
+  int input_height = model.getInputHeight();
+  int input_width = model.getInputWidth();
+  int num_classes = model.getNumClasses();
+  int num_predictions = model.getNumPredictions();
+
+  // Verify input channels match config
+  if (input_channels != config_input_channels) {
+    std::cerr << "Warning: Engine input channels (" << input_channels
+              << ") differs from config (" << config_input_channels << ")" << std::endl;
+  }
+
+  // Verify class names match number of classes
+  if (static_cast<int>(class_names.size()) != num_classes) {
+    std::cerr << "Warning: Number of class names in config (" << class_names.size()
+              << ") differs from model classes (" << num_classes << ")" << std::endl;
+    // Pad or truncate class names as needed
+    while (static_cast<int>(class_names.size()) < num_classes) {
+      class_names.push_back("class_" + std::to_string(class_names.size()));
+    }
+  }
+
+  std::cout << "Class names: [";
+  for (size_t i = 0; i < class_names.size(); ++i) {
+    std::cout << class_names[i] << (i < class_names.size() - 1 ? ", " : "");
+  }
+  std::cout << "]" << std::endl;
+  std::cout << std::endl;
+
+  // Allocate buffers using engine dimensions
+  size_t input_size = input_channels * input_width * input_height;
   size_t output_size = model.getOutputSize() / sizeof(float);
   std::vector<float> input_buffer(input_size);
   std::vector<float> output_buffer(output_size);
@@ -177,7 +272,7 @@ int main(int argc, char* argv[]) {
   }
   std::sort(image_paths.begin(), image_paths.end());
 
-  std::cout << "\nFound " << image_paths.size() << " images to process\n" << std::endl;
+  std::cout << "Found " << image_paths.size() << " images to process\n" << std::endl;
 
   // Process each image
   int total_detections = 0;
@@ -196,8 +291,8 @@ int main(int argc, char* argv[]) {
     int orig_width = img.cols;
     int orig_height = img.rows;
 
-    // Preprocess
-    preprocess_image(img, input_buffer.data());
+    // Preprocess using engine dimensions
+    preprocess_image(img, input_buffer.data(), input_width, input_height, input_channels);
 
     // Run inference
     auto start_infer = std::chrono::high_resolution_clock::now();
@@ -209,11 +304,13 @@ int main(int argc, char* argv[]) {
     auto infer_time = std::chrono::duration_cast<std::chrono::microseconds>(end_infer - start_infer).count() / 1000.0;
     total_inference_time += infer_time;
 
-    // Parse detections
-    auto detections = parse_yolov11_output(output_buffer.data(), CONF_THRESHOLD, IOU_THRESHOLD);
+    // Parse detections using engine dimensions and config class names
+    auto detections = parse_yolov11_output(
+        output_buffer.data(), num_predictions, num_classes, class_names,
+        CONF_THRESHOLD, IOU_THRESHOLD);
 
     // Scale to original image size
-    auto scaled_detections = scale_detections(detections, MODEL_INPUT_WIDTH, MODEL_INPUT_HEIGHT,
+    auto scaled_detections = scale_detections(detections, input_width, input_height,
                                                orig_width, orig_height);
 
     total_detections += scaled_detections.size();

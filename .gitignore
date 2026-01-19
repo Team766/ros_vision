@@ -1,0 +1,61 @@
+# ROS2 / Colcon build artifacts
+build/
+install/
+log/
+
+# Python virtual environments
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+
+# TensorRT engine files (not portable between systems)
+*.engine
+
+# ONNX and PyTorch models (uncomment if you want to ignore these too)
+# *.onnx
+# *.pt
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary and cache files
+*.log
+*.tmp
+tmp/
+.cache/
+
+# Test output
+test_results/
+test_results.xml
+*.csv
+
+# Calibration data (may contain large files)
+calibration_data.old*/
+
+# Bundle archives
+*.tar.gz
+
+# Debian packages
+*.deb
+
+# Core dumps
+core
+core.*

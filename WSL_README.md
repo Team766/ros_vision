@@ -32,7 +32,7 @@ WSL doesn't natively support USB devices. To use USB cameras with this vision sy
 In Windows Command Prompt or PowerShell (run as Administrator):
 
 ```cmd
-usbipd wsl list
+usbipd list
 ```
 
 This will show all connected USB devices. Look for your camera device (typically shows as a USB camera, webcam, or video device).
@@ -76,7 +76,7 @@ and confirm that the centry for the desired camera shows as Shared.
 Attach the camera to your WSL distribution:
 
 ```cmd
-usbipd wsl attach --busid 2-1
+usbipd attach --busid 2-1 --wsl
 ```
 You should see something like this:
 
@@ -121,7 +121,7 @@ You should see video device files like `/dev/video0`, `/dev/video1`, etc.
 1. **Connect your camera** to your Windows machine
 2. **Attach to WSL** (in Windows Command Prompt as Administrator):
    ```cmd
-   usbipd wsl attach --busid <your-camera-busid>
+   usbipd --wsl attach --busid <your-camera-busid>
    ```
 3. **Run your vision system** in WSL as normal
 
@@ -130,7 +130,7 @@ You should see video device files like `/dev/video0`, `/dev/video1`, etc.
 To detach the camera from WSL (optional):
 
 ```cmd
-usbipd wsl detach --busid <your-camera-busid>
+usbipd --wsl detach --busid <your-camera-busid>
 ```
 
 ## Troubleshooting
@@ -177,8 +177,8 @@ If you get "device busy" errors:
 1. **Close any Windows applications** using the camera (like Camera app, Skype, etc.)
 2. **Detach and reattach** the device:
    ```cmd
-   usbipd wsl detach --busid <your-camera-busid>
-   usbipd wsl attach --busid <your-camera-busid>
+   usbipd --wsl detach --busid <your-camera-busid>
+   usbipd --wsl attach --busid <your-camera-busid>
    ```
 
 ### Multiple Cameras
@@ -186,10 +186,10 @@ If you get "device busy" errors:
 For multiple cameras, repeat the bind and attach process for each camera's BUSID:
 
 ```cmd
-usbipd wsl bind --busid 1-1
-usbipd wsl bind --busid 1-2
-usbipd wsl attach --busid 1-1
-usbipd wsl attach --busid 1-2
+usbipd --wsl bind --busid 1-1
+usbipd --wsl bind --busid 1-2
+usbipd --wsl attach --busid 1-1
+usbipd --wsl attach --busid 1-2
 ```
 
 ## Notes

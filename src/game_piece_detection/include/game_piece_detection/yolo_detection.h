@@ -8,16 +8,11 @@
 #include <string>
 #include <vector>
 
-// Class names for the reefscape model
-const std::vector<std::string> CLASS_NAMES = {"algae", "coral"};
-constexpr int NUM_CLASSES = 2;
-constexpr int NUM_PREDICTIONS = 8400;
-constexpr int VALUES_PER_PREDICTION = 6;  // 4 bbox + 2 class scores
-
 class YoloDetection {
  public:
-  YoloDetection(float x, float y, float w, float h, float conf, int cls)
-      : x_(x), y_(y), w_(w), h_(h), conf_(conf), cls_(cls) {}
+  YoloDetection(float x, float y, float w, float h, float conf, int cls,
+                const std::string& class_name = "unknown")
+      : x_(x), y_(y), w_(w), h_(h), conf_(conf), cls_(cls), class_name_(class_name) {}
 
   // Getters
   float x() const { return x_; }
@@ -26,13 +21,7 @@ class YoloDetection {
   float h() const { return h_; }
   float conf() const { return conf_; }
   int cls() const { return cls_; }
-
-  std::string class_name() const {
-    if (cls_ >= 0 && cls_ < static_cast<int>(CLASS_NAMES.size())) {
-      return CLASS_NAMES[cls_];
-    }
-    return "unknown";
-  }
+  const std::string& class_name() const { return class_name_; }
 
   // Bounding box corners (for NMS IoU calculation)
   float x1() const { return x_ - w_ / 2.0f; }
@@ -41,7 +30,7 @@ class YoloDetection {
   float y2() const { return y_ + h_ / 2.0f; }
 
   friend std::ostream& operator<<(std::ostream& os, const YoloDetection& d) {
-    os << "class: " << d.class_name() << " (" << d.cls_ << "), "
+    os << "class: " << d.class_name_ << " (" << d.cls_ << "), "
        << "conf: " << d.conf_ << ", "
        << "bbox: [" << d.x_ << ", " << d.y_ << ", " << d.w_ << ", " << d.h_
        << "]";
@@ -55,6 +44,7 @@ class YoloDetection {
   float h_;  // height
   float conf_;
   int cls_;
+  std::string class_name_;
 };
 
 /**
@@ -120,42 +110,48 @@ inline std::vector<YoloDetection> apply_nms(
 /**
  * Parse raw YOLOv11 output tensor and extract detections.
  *
- * Raw output shape: [1, 6, 8400]
- *   - 6 values: [x_center, y_center, width, height, algae_score, coral_score]
- *   - 8400 candidate predictions
+ * Raw output shape: [1, N, P]
+ *   - N values: [x_center, y_center, width, height, class_0_score, ..., class_n_score]
+ *   - P candidate predictions
  *
- * @param raw_output Pointer to raw model output (1 * 6 * 8400 floats)
+ * @param raw_output Pointer to raw model output
+ * @param num_predictions Number of predictions (P dimension)
+ * @param num_classes Number of classes in the model
+ * @param class_names Vector of class names (size must match num_classes)
  * @param conf_threshold Minimum confidence to keep detection
  * @param iou_threshold IoU threshold for NMS
  * @return Vector of filtered detections after NMS
  */
 inline std::vector<YoloDetection> parse_yolov11_output(
-    const float* raw_output, float conf_threshold = 0.25f,
+    const float* raw_output,
+    int num_predictions,
+    int num_classes,
+    const std::vector<std::string>& class_names,
+    float conf_threshold = 0.25f,
     float iou_threshold = 0.45f) {
   std::vector<YoloDetection> candidates;
   candidates.reserve(1000);  // Pre-allocate for efficiency
 
-  // Raw output is [1, 6, 8400] - stored as 6 rows of 8400 values
+  // Raw output is [1, N, P] - stored as N rows of P values
   // Row 0: all x_center values
   // Row 1: all y_center values
   // Row 2: all width values
   // Row 3: all height values
-  // Row 4: all algae_score values
-  // Row 5: all coral_score values
+  // Row 4+: class score values
 
   const float* x_row = raw_output;
-  const float* y_row = raw_output + NUM_PREDICTIONS;
-  const float* w_row = raw_output + NUM_PREDICTIONS * 2;
-  const float* h_row = raw_output + NUM_PREDICTIONS * 3;
-  const float* class_scores = raw_output + NUM_PREDICTIONS * 4;  // Start of class scores
+  const float* y_row = raw_output + num_predictions;
+  const float* w_row = raw_output + num_predictions * 2;
+  const float* h_row = raw_output + num_predictions * 3;
+  const float* class_scores = raw_output + num_predictions * 4;  // Start of class scores
 
-  for (int i = 0; i < NUM_PREDICTIONS; ++i) {
+  for (int i = 0; i < num_predictions; ++i) {
     // Find max class score and its index
     float max_score = 0.0f;
     int max_class = 0;
 
-    for (int c = 0; c < NUM_CLASSES; ++c) {
-      float score = class_scores[c * NUM_PREDICTIONS + i];
+    for (int c = 0; c < num_classes; ++c) {
+      float score = class_scores[c * num_predictions + i];
       if (score > max_score) {
         max_score = score;
         max_class = c;
@@ -167,13 +163,18 @@ inline std::vector<YoloDetection> parse_yolov11_output(
       continue;
     }
 
-    // Extract bbox (already in pixel coordinates for 640x640)
+    // Extract bbox (already in pixel coordinates for model input size)
     float x = x_row[i];
     float y = y_row[i];
     float w = w_row[i];
     float h = h_row[i];
 
-    candidates.emplace_back(x, y, w, h, max_score, max_class);
+    // Get class name
+    std::string name = (max_class >= 0 && max_class < static_cast<int>(class_names.size()))
+                           ? class_names[max_class]
+                           : "unknown";
+
+    candidates.emplace_back(x, y, w, h, max_score, max_class, name);
   }
 
   // Apply NMS
@@ -183,9 +184,9 @@ inline std::vector<YoloDetection> parse_yolov11_output(
 /**
  * Scale detections from model input size to original image size.
  *
- * @param detections Detections in model input coordinates (640x640)
- * @param model_width Model input width (default 640)
- * @param model_height Model input height (default 640)
+ * @param detections Detections in model input coordinates
+ * @param model_width Model input width
+ * @param model_height Model input height
  * @param orig_width Original image width
  * @param orig_height Original image height
  * @return Detections scaled to original image coordinates
@@ -201,7 +202,7 @@ inline std::vector<YoloDetection> scale_detections(
 
   for (const auto& det : detections) {
     scaled.emplace_back(det.x() * scale_x, det.y() * scale_y, det.w() * scale_x,
-                        det.h() * scale_y, det.conf(), det.cls());
+                        det.h() * scale_y, det.conf(), det.cls(), det.class_name());
   }
 
   return scaled;

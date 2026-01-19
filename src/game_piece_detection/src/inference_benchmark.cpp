@@ -1,4 +1,5 @@
 #include <opencv2/opencv.hpp>
+#include <nlohmann/json.hpp>
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -13,31 +14,45 @@
 #include "game_piece_detection/yolo_detection.h"
 
 namespace fs = std::filesystem;
-
-constexpr int MODEL_INPUT_WIDTH = 640;
-constexpr int MODEL_INPUT_HEIGHT = 640;
-constexpr int MODEL_CHANNELS = 3;
+using json = nlohmann::json;
 
 /**
  * Preprocess an image for YOLOv11 inference.
+ *
+ * @param img Input BGR image (any size)
+ * @param output Pre-allocated buffer for output
+ * @param input_width Model input width
+ * @param input_height Model input height
+ * @param input_channels Number of input channels (1 or 3)
  */
-void preprocess_image(const cv::Mat& img, float* output) {
+void preprocess_image(const cv::Mat& img, float* output,
+                      int input_width, int input_height, int input_channels) {
   cv::Mat resized;
-  cv::resize(img, resized, cv::Size(MODEL_INPUT_WIDTH, MODEL_INPUT_HEIGHT));
+  cv::resize(img, resized, cv::Size(input_width, input_height));
 
-  cv::Mat rgb;
-  cv::cvtColor(resized, rgb, cv::COLOR_BGR2RGB);
+  cv::Mat processed;
+  if (input_channels == 3) {
+    cv::cvtColor(resized, processed, cv::COLOR_BGR2RGB);
+  } else if (input_channels == 1) {
+    cv::cvtColor(resized, processed, cv::COLOR_BGR2GRAY);
+  } else {
+    processed = resized;
+  }
 
   cv::Mat float_img;
-  rgb.convertTo(float_img, CV_32FC3, 1.0 / 255.0);
+  int cv_type = (input_channels == 1) ? CV_32FC1 : CV_32FC3;
+  processed.convertTo(float_img, cv_type, 1.0 / 255.0);
 
-  std::vector<cv::Mat> channels(3);
-  cv::split(float_img, channels);
-
-  size_t channel_size = MODEL_INPUT_WIDTH * MODEL_INPUT_HEIGHT;
-  memcpy(output, channels[0].data, channel_size * sizeof(float));
-  memcpy(output + channel_size, channels[1].data, channel_size * sizeof(float));
-  memcpy(output + 2 * channel_size, channels[2].data, channel_size * sizeof(float));
+  size_t channel_size = input_width * input_height;
+  if (input_channels == 1) {
+    memcpy(output, float_img.data, channel_size * sizeof(float));
+  } else {
+    std::vector<cv::Mat> channels(input_channels);
+    cv::split(float_img, channels);
+    for (int c = 0; c < input_channels; ++c) {
+      memcpy(output + c * channel_size, channels[c].data, channel_size * sizeof(float));
+    }
+  }
 }
 
 struct BenchmarkStats {
@@ -90,43 +105,93 @@ BenchmarkStats calculate_stats(std::vector<double>& times) {
 }
 
 void print_usage(const char* prog_name) {
-  std::cout << "Usage: " << prog_name << " <engine_file> <image_file> [options]" << std::endl;
+  std::cout << "Usage: " << prog_name << " --config <config_file> --image <image_file> [options]" << std::endl;
   std::cout << std::endl;
   std::cout << "Arguments:" << std::endl;
-  std::cout << "  engine_file    Path to TensorRT engine file (.engine)" << std::endl;
-  std::cout << "  image_file     Path to test image" << std::endl;
+  std::cout << "  --config FILE    Path to system_config.json" << std::endl;
+  std::cout << "  --image FILE     Path to test image" << std::endl;
+  std::cout << "  --engine FILE    Optional: Override engine file from config" << std::endl;
   std::cout << std::endl;
   std::cout << "Options:" << std::endl;
-  std::cout << "  --warmup N     Number of warmup iterations (default: 50)" << std::endl;
-  std::cout << "  --iterations N Number of benchmark iterations (default: 1000)" << std::endl;
-  std::cout << "  --output FILE  Output CSV file (default: benchmark_results.csv)" << std::endl;
+  std::cout << "  --warmup N       Number of warmup iterations (default: 50)" << std::endl;
+  std::cout << "  --iterations N   Number of benchmark iterations (default: 1000)" << std::endl;
+  std::cout << "  --output FILE    Output CSV file (default: benchmark_results.csv)" << std::endl;
   std::cout << std::endl;
   std::cout << "Example:" << std::endl;
-  std::cout << "  " << prog_name << " model.engine test.jpg --iterations 500 --output results.csv" << std::endl;
+  std::cout << "  " << prog_name << " --config system_config.json --image test.jpg --iterations 500" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
-  if (argc < 3) {
-    print_usage(argv[0]);
-    return 1;
-  }
-
-  std::string engine_path = argv[1];
-  std::string image_path = argv[2];
+  std::string config_path;
+  std::string image_path;
+  std::string engine_override;
   int warmup_iterations = 50;
   int benchmark_iterations = 1000;
   std::string output_file = "benchmark_results.csv";
 
-  // Parse optional arguments
-  for (int i = 3; i < argc; i++) {
+  // Parse command line arguments
+  for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
-    if (arg == "--warmup" && i + 1 < argc) {
+    if (arg == "--config" && i + 1 < argc) {
+      config_path = argv[++i];
+    } else if (arg == "--image" && i + 1 < argc) {
+      image_path = argv[++i];
+    } else if (arg == "--engine" && i + 1 < argc) {
+      engine_override = argv[++i];
+    } else if (arg == "--warmup" && i + 1 < argc) {
       warmup_iterations = std::stoi(argv[++i]);
     } else if (arg == "--iterations" && i + 1 < argc) {
       benchmark_iterations = std::stoi(argv[++i]);
     } else if (arg == "--output" && i + 1 < argc) {
       output_file = argv[++i];
+    } else if (arg == "--help" || arg == "-h") {
+      print_usage(argv[0]);
+      return 0;
     }
+  }
+
+  if (config_path.empty() || image_path.empty()) {
+    print_usage(argv[0]);
+    return 1;
+  }
+
+  // Load configuration
+  if (!fs::exists(config_path)) {
+    std::cerr << "Error: Config file not found: " << config_path << std::endl;
+    return 1;
+  }
+
+  std::ifstream config_file(config_path);
+  json config;
+  try {
+    config_file >> config;
+  } catch (const json::parse_error& e) {
+    std::cerr << "Error parsing config file: " << e.what() << std::endl;
+    return 1;
+  }
+
+  // Extract game_piece_detection configuration
+  if (!config.contains("game_piece_detection")) {
+    std::cerr << "Error: Config file missing 'game_piece_detection' section" << std::endl;
+    return 1;
+  }
+
+  auto& gpd_config = config["game_piece_detection"];
+
+  std::string engine_path = engine_override.empty()
+      ? gpd_config.value("engine_file", "")
+      : engine_override;
+  int config_input_channels = gpd_config.value("input_channels", 3);
+  std::vector<std::string> class_names;
+  if (gpd_config.contains("class_names")) {
+    for (const auto& name : gpd_config["class_names"]) {
+      class_names.push_back(name.get<std::string>());
+    }
+  }
+
+  if (engine_path.empty()) {
+    std::cerr << "Error: No engine file specified in config or command line" << std::endl;
+    return 1;
   }
 
   // Verify paths
@@ -140,6 +205,7 @@ int main(int argc, char* argv[]) {
   }
 
   std::cout << "=== Inference Benchmark ===" << std::endl;
+  std::cout << "Config: " << config_path << std::endl;
   std::cout << "Engine: " << engine_path << std::endl;
   std::cout << "Image: " << image_path << std::endl;
   std::cout << "Warmup iterations: " << warmup_iterations << std::endl;
@@ -155,17 +221,34 @@ int main(int argc, char* argv[]) {
   double engine_load_time = std::chrono::duration<double, std::milli>(engine_load_end - engine_load_start).count();
   std::cout << "Engine loaded in " << engine_load_time << " ms" << std::endl;
 
-  // Print model info
-  auto input_dims = model.getInputDims();
-  auto output_dims = model.getOutputDims();
-  std::cout << "Input shape: [";
-  for (int i = 0; i < input_dims.nbDims; i++) {
-    std::cout << input_dims.d[i] << (i < input_dims.nbDims - 1 ? ", " : "");
+  // Print model info from engine
+  model.printEngineInfo();
+
+  // Get dimensions from engine
+  int input_channels = model.getInputChannels();
+  int input_height = model.getInputHeight();
+  int input_width = model.getInputWidth();
+  int num_classes = model.getNumClasses();
+  int num_predictions = model.getNumPredictions();
+
+  // Verify input channels match config
+  if (input_channels != config_input_channels) {
+    std::cerr << "Warning: Engine input channels (" << input_channels
+              << ") differs from config (" << config_input_channels << ")" << std::endl;
   }
-  std::cout << "]" << std::endl;
-  std::cout << "Output shape: [";
-  for (int i = 0; i < output_dims.nbDims; i++) {
-    std::cout << output_dims.d[i] << (i < output_dims.nbDims - 1 ? ", " : "");
+
+  // Verify class names match number of classes
+  if (static_cast<int>(class_names.size()) != num_classes) {
+    std::cerr << "Warning: Number of class names in config (" << class_names.size()
+              << ") differs from model classes (" << num_classes << ")" << std::endl;
+    while (static_cast<int>(class_names.size()) < num_classes) {
+      class_names.push_back("class_" + std::to_string(class_names.size()));
+    }
+  }
+
+  std::cout << "Class names: [";
+  for (size_t i = 0; i < class_names.size(); ++i) {
+    std::cout << class_names[i] << (i < class_names.size() - 1 ? ", " : "");
   }
   std::cout << "]" << std::endl;
   std::cout << std::endl;
@@ -179,13 +262,13 @@ int main(int argc, char* argv[]) {
   }
   std::cout << "Image size: " << img.cols << "x" << img.rows << std::endl;
 
-  size_t input_size = MODEL_CHANNELS * MODEL_INPUT_WIDTH * MODEL_INPUT_HEIGHT;
+  size_t input_size = input_channels * input_width * input_height;
   size_t output_size = model.getOutputSize() / sizeof(float);
   std::vector<float> input_buffer(input_size);
   std::vector<float> output_buffer(output_size);
 
   // Preprocess image into input buffer (done once)
-  preprocess_image(img, input_buffer.data());
+  preprocess_image(img, input_buffer.data(), input_width, input_height, input_channels);
   std::cout << std::endl;
 
   // Warmup phase
@@ -221,7 +304,8 @@ int main(int argc, char* argv[]) {
 
     // Post-processing (parsing detections)
     auto postprocess_start = std::chrono::high_resolution_clock::now();
-    auto detections = parse_yolov11_output(output_buffer.data(), 0.25f, 0.45f);
+    auto detections = parse_yolov11_output(
+        output_buffer.data(), num_predictions, num_classes, class_names, 0.25f, 0.45f);
     auto postprocess_end = std::chrono::high_resolution_clock::now();
 
     auto total_end = std::chrono::high_resolution_clock::now();
