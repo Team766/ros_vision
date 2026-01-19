@@ -37,6 +37,15 @@ fi
 # Now build the image transport packages
 colcon build --packages-select compressed_image_transport theora_image_transport
 
+# Download YOLO models if not present
+if [ ! -d "src/game_piece_detection/models/2026_rebuilt" ] ; then
+    echo "Downloading YOLO models..."
+    pushd src/game_piece_detection/models
+    ./setup_env.sh
+    ./run.sh ./download_models.sh
+    popd
+fi
+
 # Now we should be good to go for the rest of the build
 echo "Building all"
 colcon build
