@@ -91,8 +91,17 @@ install(DIRECTORY utils/ DESTINATION share/${PROJECT_NAME}/utils
   PATTERN "*.egg-info" EXCLUDE
 )
 
-# Install data and models directories
+# Install data directory
 install(DIRECTORY data/ DESTINATION share/${PROJECT_NAME}/data)
-install(DIRECTORY models/ DESTINATION share/${PROJECT_NAME}/models)
+
+# Install downloaded models (exclude scripts, venv, etc.)
+install(DIRECTORY models/ DESTINATION share/${PROJECT_NAME}/models
+  PATTERN ".venv" EXCLUDE
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN "*.sh" EXCLUDE
+  PATTERN "*.txt" EXCLUDE
+  PATTERN "*.md" EXCLUDE
+  PATTERN ".gitignore" EXCLUDE
+)
 
 ament_package()

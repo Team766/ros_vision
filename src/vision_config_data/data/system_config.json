@@ -188,7 +188,7 @@
         "default_priority": 80
     },
     "game_piece_detection": {
-        "engine_file": "/home/cpadwick/code/ros_vision/rebuilt-yolov11-weights-fp16.engine",
+        "engine_file": "install/game_piece_detection/share/game_piece_detection/models/2026_rebuilt/rgb/rebuilt-yolov11-orin-fp16.engine",
         "input_channels": 3,
         "class_names": ["ball"]
     }
