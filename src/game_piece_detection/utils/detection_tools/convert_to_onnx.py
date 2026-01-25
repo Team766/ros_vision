@@ -3,13 +3,14 @@
 
 import argparse
 from pathlib import Path
+from typing import Optional
 
 from ultralytics import YOLO
 
 
 def convert_to_onnx(
     weights_path: str,
-    output_path: str | None = None,
+    output_path: Optional[str] = None,
     imgsz: int = 640,
     opset: int = 12,
     simplify: bool = True,
