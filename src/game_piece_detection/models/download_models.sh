@@ -2,7 +2,7 @@
 #
 # Download model files from Google Drive modelzoo
 #
-# Usage: ./download_modelzoo.sh [output_directory]
+# Usage: ./download_models.sh [output_directory]
 #
 # Prerequisites:
 #   pip install gdown
