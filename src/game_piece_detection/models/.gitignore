@@ -1,0 +1,7 @@
+# Downloaded model files (run download_models.sh to populate)
+*.pt
+*.onnx
+*.engine
+
+# Virtual environment
+.venv/
