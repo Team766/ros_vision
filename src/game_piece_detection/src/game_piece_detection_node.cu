@@ -7,10 +7,13 @@
 #include <sstream>
 #include <fstream>
 #include <filesystem>
+#include <memory>
+#include <stdexcept>
 #include <nlohmann/json.hpp>
 
 #include "game_piece_detection/ModelInference.h"
 #include "game_piece_detection/yolo_detection.h"
+#include "game_piece_detection/detection_utils.h"
 
 #include "vision_utils/publisher_queue.hpp"
 
@@ -24,15 +27,12 @@ public:
 GamePieceDetector()
       : Node("game_piece_detector") {
 
-    // Decare parameters
+    // Declare parameters
     this->declare_parameter<std::string>("topic_name", "camera/image_raw");
     std::string topic_name = this->get_parameter("topic_name").as_string();
 
     this->declare_parameter<std::string>("camera_serial", "N/A");
     camera_serial_ = this->get_parameter("camera_serial").as_string();
-
-    this->declare_parameter<std::string>("engine_file", "N/A");
-    engine_file_ = this->get_parameter("engine_file").as_string();
 
     this->declare_parameter<std::string>("publish_to_topic",
                                          "game_piece_detector/images");
@@ -43,12 +43,55 @@ GamePieceDetector()
         std::bind(&GamePieceDetector::imageCallback, this,
                   std::placeholders::_1));
 
-    // Game piece detector setup
+    // Load extrinsic parameters for camera-to-robot transformation
     get_extrinsic_params();
 
-    // TODO: Initialize ModelInference object with engine file.
+    // Load game piece detection configuration (throws on error)
+    get_game_piece_detection_config();
+
+    // Verify engine file exists
+    if (!std::filesystem::exists(engine_file_path_)) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Engine file not found: %s", engine_file_path_.c_str());
+      throw std::runtime_error("Engine file not found: " + engine_file_path_);
+    }
+
+    // Initialize TensorRT model
     RCLCPP_INFO(this->get_logger(),
-                "ModelInference Initialization not implemented yet!");
+                "Loading TensorRT engine from: %s", engine_file_path_.c_str());
+    model_ = std::make_unique<ModelInference>(engine_file_path_);
+
+    // Verify model initialized successfully
+    if (!model_) {
+      RCLCPP_ERROR(this->get_logger(), "Failed to initialize ModelInference");
+      throw std::runtime_error("Failed to initialize ModelInference from: " + engine_file_path_);
+    }
+
+    // Get model dimensions
+    model_input_width_ = model_->getInputWidth();
+    model_input_height_ = model_->getInputHeight();
+    num_classes_ = model_->getNumClasses();
+    num_predictions_ = model_->getNumPredictions();
+
+    // Verify input channels match config
+    int engine_channels = model_->getInputChannels();
+    if (engine_channels != input_channels_) {
+      RCLCPP_WARN(this->get_logger(),
+                  "Engine input channels (%d) differs from config (%d), using engine value",
+                  engine_channels, input_channels_);
+      input_channels_ = engine_channels;
+    }
+
+    // Allocate inference buffers
+    size_t input_size = input_channels_ * model_input_width_ * model_input_height_;
+    size_t output_size = model_->getOutputSize() / sizeof(float);
+    input_buffer_.resize(input_size);
+    output_buffer_.resize(output_size);
+
+    RCLCPP_INFO(this->get_logger(),
+                "Model initialized: input=%dx%dx%d, classes=%d, predictions=%d",
+                model_input_width_, model_input_height_, input_channels_,
+                num_classes_, num_predictions_);
   }
 
   void init() {
@@ -209,11 +252,119 @@ private:
     return;
   }
 
+  /**
+   * @brief Load game piece detection configuration from system config file.
+   *
+   * Reads the engine file path, input channels, and class names from the
+   * game_piece_detection section. Throws std::runtime_error on failure.
+   */
+  void get_game_piece_detection_config() {
+    // Locate the system config file
+    fs::path config_path =
+        ament_index_cpp::get_package_share_directory("vision_config_data");
+    fs::path config_file = config_path / "data" / "system_config.json";
+
+    if (!std::filesystem::exists(config_file)) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find system config file at path: %s",
+                   config_file.c_str());
+      throw std::runtime_error("System config file not found: " + config_file.string());
+    }
+
+    // Load the parameters from the file
+    std::ifstream f(config_file);
+    json data = json::parse(f);
+
+    if (!data.contains("game_piece_detection")) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find key \"game_piece_detection\" in system config file");
+      throw std::runtime_error("Missing 'game_piece_detection' section in config");
+    }
+
+    const auto& gpd = data["game_piece_detection"];
+
+    // Read engine file path (required)
+    if (!gpd.contains("engine_file")) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Missing \"engine_file\" in game_piece_detection config");
+      throw std::runtime_error("Missing 'engine_file' in game_piece_detection config");
+    }
+    engine_file_path_ = gpd["engine_file"].get<std::string>();
+
+    // Read input channels (optional, defaults to 3)
+    if (gpd.contains("input_channels")) {
+      input_channels_ = gpd["input_channels"].get<int>();
+    }
+
+    // Read class names (optional but recommended)
+    if (gpd.contains("class_names")) {
+      for (const auto& name : gpd["class_names"]) {
+        class_names_.push_back(name.get<std::string>());
+      }
+    }
+
+    RCLCPP_INFO(this->get_logger(),
+                "Loaded game piece detection config: engine=%s, channels=%d, classes=%zu",
+                engine_file_path_.c_str(), input_channels_, class_names_.size());
+  }
+
   void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
+    // Model must be initialized - this is a fatal condition
+    if (!model_) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Model not initialized - cannot process images");
+      throw std::runtime_error("Model not initialized in imageCallback");
+    }
+
+    // Input is always BGR from cv_bridge, regardless of whether camera is RGB or mono.
+    // The preprocess_image() function handles conversion to what the model expects.
     cv::Mat bgr_img = cv_bridge::toCvCopy(msg, "bgr8")->image;
 
-    // TODO: Run the inference and publish the output to a message.
-    (void)bgr_img;  // Suppress unused warning until inference is implemented
+    int orig_width = bgr_img.cols;
+    int orig_height = bgr_img.rows;
+
+    // Step 1: Preprocess image
+    // - Resizes to model input dimensions (e.g., 640x640)
+    // - Normalizes pixel values to [0, 1]
+    // - Converts BGR to RGB (if input_channels_==3) or grayscale (if input_channels_==1)
+    // - Converts from HWC to CHW format for GPU inference
+    preprocess_image(bgr_img, input_buffer_.data(),
+                     model_input_width_, model_input_height_, input_channels_);
+
+    // Step 2: Run inference
+    if (!model_->infer(input_buffer_.data(), output_buffer_.data())) {
+      RCLCPP_ERROR(this->get_logger(), "Inference failed");
+      return;  // Skip this frame but don't crash
+    }
+
+    // Step 3: Parse detections from model output
+    auto detections = parse_yolov11_output(
+        output_buffer_.data(),
+        num_predictions_,
+        num_classes_,
+        class_names_,
+        DEFAULT_CONF_THRESHOLD,
+        DEFAULT_IOU_THRESHOLD);
+
+    // Step 4: Scale detections from model input size back to original image size
+    auto scaled_detections = scale_detections(
+        detections,
+        model_input_width_, model_input_height_,
+        orig_width, orig_height);
+
+    // Step 5: Draw detections on image (always on BGR image for visualization)
+    draw_detections(bgr_img, scaled_detections);
+
+    // Step 6: Publish annotated image (following apriltags_cuda pattern)
+    auto output_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgr_img).toImageMsg();
+    output_msg->header.stamp = msg->header.stamp;  // Preserve original timestamp
+    output_msg->header.frame_id = "game_piece_detections";
+    image_pub_queue_->enqueue(output_msg);
+
+    // Log detection count (throttled to avoid spam)
+    if (!scaled_detections.empty()) {
+      RCLCPP_DEBUG(this->get_logger(), "Detected %zu game pieces", scaled_detections.size());
+    }
   }
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscriber_;
@@ -226,7 +377,24 @@ private:
   image_transport::Publisher publisher_;
   std::string publish_to_topic_;
   std::string camera_serial_;
-  std::string engine_file_;
+
+  // Model inference
+  std::unique_ptr<ModelInference> model_;
+
+  // Model configuration (from system_config.json)
+  std::string engine_file_path_;
+  int input_channels_ = 3;
+  std::vector<std::string> class_names_;
+
+  // Inference buffers (allocated once, reused per frame)
+  std::vector<float> input_buffer_;
+  std::vector<float> output_buffer_;
+
+  // Model dimensions (populated after model initialization)
+  int model_input_width_ = 0;
+  int model_input_height_ = 0;
+  int num_classes_ = 0;
+  int num_predictions_ = 0;
 
   // Extrinsic calibration
   cv::Mat extrinsic_rotation_;

@@ -104,4 +104,21 @@ install(DIRECTORY models/ DESTINATION share/${PROJECT_NAME}/models
   PATTERN ".gitignore" EXCLUDE
 )
 
+# Unit tests (no GPU/TensorRT required)
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_game_piece_detector test/test_game_piece_detector.cpp)
+  target_include_directories(test_game_piece_detector PRIVATE include)
+  target_link_libraries(test_game_piece_detector
+      ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_core.so
+      ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgproc.so
+  )
+  set_target_properties(test_game_piece_detector PROPERTIES
+      BUILD_RPATH "${VISION_DEPS_INSTALL_DIR}/opencv-install/lib"
+      INSTALL_RPATH "${VISION_DEPS_INSTALL_DIR}/opencv-install/lib"
+      INSTALL_RPATH_USE_LINK_PATH TRUE
+  )
+endif()
+
 ament_package()

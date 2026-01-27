@@ -9,112 +9,14 @@
 
 #include "game_piece_detection/ModelInference.h"
 #include "game_piece_detection/yolo_detection.h"
+#include "game_piece_detection/detection_utils.h"
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
-constexpr float CONF_THRESHOLD = 0.25f;
-constexpr float IOU_THRESHOLD = 0.45f;
-
-/**
- * Preprocess an image for YOLOv11 inference.
- * - Resize to model input size
- * - Convert BGR to RGB (if 3 channels) or grayscale
- * - Normalize to [0, 1]
- * - Convert to NCHW format (channels first)
- *
- * @param img Input BGR image (any size)
- * @param output Pre-allocated buffer for output
- * @param input_width Model input width
- * @param input_height Model input height
- * @param input_channels Number of input channels (1 or 3)
- */
-void preprocess_image(const cv::Mat& img, float* output,
-                      int input_width, int input_height, int input_channels) {
-  // Resize to model input size
-  cv::Mat resized;
-  cv::resize(img, resized, cv::Size(input_width, input_height));
-
-  cv::Mat processed;
-  if (input_channels == 3) {
-    // Convert BGR to RGB
-    cv::cvtColor(resized, processed, cv::COLOR_BGR2RGB);
-  } else if (input_channels == 1) {
-    // Convert to grayscale
-    cv::cvtColor(resized, processed, cv::COLOR_BGR2GRAY);
-  } else {
-    processed = resized;
-  }
-
-  // Convert to float and normalize to [0, 1]
-  cv::Mat float_img;
-  int cv_type = (input_channels == 1) ? CV_32FC1 : CV_32FC3;
-  processed.convertTo(float_img, cv_type, 1.0 / 255.0);
-
-  // Convert from HWC to CHW (NCHW with batch=1)
-  size_t channel_size = input_width * input_height;
-  if (input_channels == 1) {
-    memcpy(output, float_img.data, channel_size * sizeof(float));
-  } else {
-    std::vector<cv::Mat> channels(input_channels);
-    cv::split(float_img, channels);
-    for (int c = 0; c < input_channels; ++c) {
-      memcpy(output + c * channel_size, channels[c].data, channel_size * sizeof(float));
-    }
-  }
-}
-
-/**
- * Draw detections on an image.
- *
- * @param img Image to draw on (modified in place)
- * @param detections Detections in original image coordinates
- */
-void draw_detections(cv::Mat& img, const std::vector<YoloDetection>& detections) {
-  // Generate colors for classes
-  const std::vector<cv::Scalar> colors = {
-      cv::Scalar(0, 255, 0),    // green
-      cv::Scalar(0, 165, 255),  // orange
-      cv::Scalar(255, 0, 0),    // blue
-      cv::Scalar(0, 255, 255),  // yellow
-      cv::Scalar(255, 0, 255),  // magenta
-      cv::Scalar(255, 255, 0),  // cyan
-  };
-
-  for (const auto& det : detections) {
-    // Convert center format to corner format
-    int x1 = static_cast<int>(det.x1());
-    int y1 = static_cast<int>(det.y1());
-    int x2 = static_cast<int>(det.x2());
-    int y2 = static_cast<int>(det.y2());
-
-    // Clamp to image bounds
-    x1 = std::max(0, std::min(x1, img.cols - 1));
-    y1 = std::max(0, std::min(y1, img.rows - 1));
-    x2 = std::max(0, std::min(x2, img.cols - 1));
-    y2 = std::max(0, std::min(y2, img.rows - 1));
-
-    cv::Scalar color = colors[det.cls() % colors.size()];
-
-    // Draw bounding box
-    cv::rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), color, 2);
-
-    // Draw label background
-    std::string label = det.class_name() + " " +
-                        std::to_string(static_cast<int>(det.conf() * 100)) + "%";
-    int baseline;
-    cv::Size label_size = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseline);
-    int label_y = std::max(y1, label_size.height + 5);
-    cv::rectangle(img,
-                  cv::Point(x1, label_y - label_size.height - 5),
-                  cv::Point(x1 + label_size.width, label_y + baseline - 5),
-                  color, cv::FILLED);
-
-    // Draw label text
-    cv::putText(img, label, cv::Point(x1, label_y - 5),
-                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0), 1);
-  }
-}
+// Use thresholds from detection_utils.h or define local overrides
+constexpr float CONF_THRESHOLD = DEFAULT_CONF_THRESHOLD;
+constexpr float IOU_THRESHOLD = DEFAULT_IOU_THRESHOLD;
 
 void print_usage(const char* prog_name) {
   std::cout << "Usage: " << prog_name << " --config <config_file> --images <image_dir> [options]" << std::endl;
