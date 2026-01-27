@@ -411,6 +411,7 @@ void ApriltagsDetector::imageCallback(
   std::vector<double> networktables_pose_data = {};
   apriltags_cuda::msg::TagDetectionArray tag_detection_array_msg;
   apriltags_cuda::msg::TagDetectionArray tag_detection_camera_array_msg;
+  apriltags_cuda::ApriltagListProto tag_detection_proto_list;
   tag_detection_array_msg.detections.clear();
   tag_detection_camera_array_msg.detections.clear();
 
@@ -474,6 +475,14 @@ void ApriltagsDetector::imageCallback(
       networktables_pose_data.push_back(data.robot_position.at<double>(1));
       networktables_pose_data.push_back(data.robot_position.at<double>(2));
 
+      // Add to protobuf list
+      auto* tag_proto = tag_detection_proto_list.add_tags();
+      tag_proto->set_collect_time(image_capture_time.seconds());
+      tag_proto->set_tag_id(data.det->id);
+      tag_proto->set_x(data.robot_position.at<double>(0));
+      tag_proto->set_y(data.robot_position.at<double>(1));
+      tag_proto->set_z(data.robot_position.at<double>(2));
+
       // Publish both camera frame and robot frame (sorted by distance)
       apriltags_cuda::add_tag_detection(
           tag_detection_camera_array_msg, data.det->id, data.camera_position[0],
@@ -488,6 +497,7 @@ void ApriltagsDetector::imageCallback(
 
   auto nt_start = std::chrono::high_resolution_clock::now();
   tag_sender_->sendValue(networktables_pose_data);
+  tag_sender_->sendProtobuf(tag_detection_proto_list);
   auto nt_end = std::chrono::high_resolution_clock::now();
 
   auto pub_pose_start = std::chrono::high_resolution_clock::now();

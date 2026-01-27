@@ -15,12 +15,22 @@ DoubleArraySender::DoubleArraySender(const std::string& key,
   auto table = inst_.GetTable(table_name);
   nt::DoubleArrayTopic topic = table->GetDoubleArrayTopic(key);
   publisher_ = topic.Publish();
+
+  nt::ProtobufTopic<apriltags_cuda::ApriltagListProto> protobuf_topic =
+      table->GetProtobufTopic<apriltags_cuda::ApriltagListProto>(key +
+                                                                 "_protobuf");
+  protobuf_publisher_ = protobuf_topic.Publish();
 }
 void DoubleArraySender::sendValue(std::vector<double> value) {
   publisher_.Set(value);
   inst_.Flush();
 }
-void DoubleArraySender::setDefaultValue(std::vector<double> value) {
   publisher_.SetDefault(value);
+  inst_.Flush();
+}
+
+void DoubleArraySender::sendProtobuf(
+  const apriltags_cuda::ApriltagListProto& value) {
+  protobuf_publisher_.Set(value);
   inst_.Flush();
 }
