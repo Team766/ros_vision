@@ -1,4 +1,6 @@
 # ros_vision
+[![Build](https://github.com/Team766/ros_vision/actions/workflows/cmake-single-platform.yml/badge.svg?branch=main)](https://github.com/Team766/ros_vision/actions/workflows/cmake-single-platform.yml)
+
 A ROS2 based vision system for robotics
 
 

@@ -19,6 +19,14 @@ if [ ! -e "src/image_transport_plugins" ] ; then
     cd ..
 fi
 
+if [ ! -e "src/realsense-ros" ] ; then
+    echo "Cloning realsense-ros into workspace"
+    cd src
+    # Pin to specific release tag (4.57.4) to avoid supply-chain risks from tracking mutable branch
+    git clone -b 4.56.4 https://github.com/IntelRealSense/realsense-ros.git
+    cd ..
+fi
+
 # Build the vision deps package first so our version of opencv builds.
 if [ ! -e "install/vision_deps/opencv-install/share/opencv4/" ] ; then
     echo "Building vision_deps"
