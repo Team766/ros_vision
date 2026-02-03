@@ -292,10 +292,22 @@ private:
     engine_file_path_ = gpd["engine_file"].get<std::string>();
 
     // Read input channels (optional, defaults to 3)
+    int configured_input_channels = input_channels_;
     if (gpd.contains("input_channels")) {
-      input_channels_ = gpd["input_channels"].get<int>();
+      configured_input_channels = gpd["input_channels"].get<int>();
     }
 
+    // Validate input channels: only 1 (grayscale) or 3 (RGB) are supported
+    if (configured_input_channels != 1 && configured_input_channels != 3) {
+      RCLCPP_ERROR(
+          this->get_logger(),
+          "Invalid 'input_channels' value (%d) in game_piece_detection config. "
+          "Supported values are 1 (grayscale) or 3 (RGB).",
+          configured_input_channels);
+      throw std::runtime_error(
+          "Invalid 'input_channels' in game_piece_detection config; must be 1 or 3");
+    }
+    input_channels_ = configured_input_channels;
     // Read class names (optional but recommended)
     if (gpd.contains("class_names")) {
       for (const auto& name : gpd["class_names"]) {
