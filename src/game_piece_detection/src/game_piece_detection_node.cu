@@ -59,12 +59,13 @@ GamePieceDetector()
     // Initialize TensorRT model
     RCLCPP_INFO(this->get_logger(),
                 "Loading TensorRT engine from: %s", engine_file_path_.c_str());
-    model_ = std::make_unique<ModelInference>(engine_file_path_);
-
-    // Verify model initialized successfully
-    if (!model_) {
-      RCLCPP_ERROR(this->get_logger(), "Failed to initialize ModelInference");
-      throw std::runtime_error("Failed to initialize ModelInference from: " + engine_file_path_);
+    try {
+      model_ = std::make_unique<ModelInference>(engine_file_path_);
+    } catch (const std::exception &e) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Exception while initializing ModelInference from '%s': %s",
+                   engine_file_path_.c_str(), e.what());
+      throw;
     }
 
     // Get model dimensions
