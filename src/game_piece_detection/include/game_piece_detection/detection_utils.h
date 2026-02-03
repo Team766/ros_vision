@@ -3,6 +3,8 @@
 
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <cstring>
+#include <algorithm>
 #include "game_piece_detection/yolo_detection.h"
 
 // Default thresholds (can be overridden when calling functions)
