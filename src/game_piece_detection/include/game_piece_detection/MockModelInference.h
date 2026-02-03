@@ -24,9 +24,12 @@ class MockModelInference {
     if (should_fail_inference_) {
       return false;
     }
-    // Fill output with pre-configured detection data
-    if (!mock_output_.empty()) {
-      std::copy(mock_output_.begin(), mock_output_.end(), output);
+    // Fill output with pre-configured detection data, clamped to the
+    // configured output size to avoid overrunning the caller's buffer.
+    if (!mock_output_.empty() && output_size_ > 0) {
+      const size_t expected_floats = output_size_ / sizeof(float);
+      const size_t copy_count = std::min(mock_output_.size(), expected_floats);
+      std::copy_n(mock_output_.begin(), copy_count, output);
     }
     return true;
   }
