@@ -286,69 +286,39 @@ private:
 
     // Read engine file path (required)
     if (!gpd.contains("engine_file")) {
-    if (!f.is_open()) {
       RCLCPP_ERROR(this->get_logger(),
-                   "Failed to open system config file at path: %s",
-                   config_file.c_str());
-      throw std::runtime_error("Failed to open system config file: " + config_file.string());
+                   "Missing \"engine_file\" in game_piece_detection config");
+      throw std::runtime_error("Missing 'engine_file' in game_piece_detection config");
+    }
+    engine_file_path_ = gpd["engine_file"].get<std::string>();
+
+    // Read input channels (optional, defaults to 3)
+    int configured_input_channels = input_channels_;
+    if (gpd.contains("input_channels")) {
+      configured_input_channels = gpd["input_channels"].get<int>();
     }
 
-    json data;
-    try {
-      data = json::parse(f);
-
-      if (!data.contains("game_piece_detection")) {
-        RCLCPP_ERROR(this->get_logger(),
-                     "Unable to find key \"game_piece_detection\" in system config file");
-        throw std::runtime_error("Missing 'game_piece_detection' section in config");
-      }
-
-      const auto& gpd = data["game_piece_detection"];
-
-      // Read engine file path (required)
-      if (!gpd.contains("engine_file")) {
-        RCLCPP_ERROR(this->get_logger(),
-                     "Missing \"engine_file\" in game_piece_detection config");
-        throw std::runtime_error("Missing 'engine_file' in game_piece_detection config");
-      }
-      engine_file_path_ = gpd["engine_file"].get<std::string>();
-
-      // Read input channels (optional, defaults to 3)
-      if (gpd.contains("input_channels")) {
-        input_channels_ = gpd["input_channels"].get<int>();
-      }
-
-      // Read class names (optional but recommended)
-      if (gpd.contains("class_names")) {
-        for (const auto& name : gpd["class_names"]) {
-          class_names_.push_back(name.get<std::string>());
-        }
-      }
-
-      RCLCPP_INFO(this->get_logger(),
-                  "Loaded game piece detection config: engine=%s, channels=%d, classes=%zu",
-                  engine_file_path_.c_str(), input_channels_, class_names_.size());
-    } catch (const nlohmann::json::parse_error& e) {
-      RCLCPP_ERROR(this->get_logger(),
-                   "Failed to parse JSON from system config file '%s': %s",
-                   config_file.c_str(), e.what());
-      throw std::runtime_error(std::string("Failed to parse system config JSON: ") + e.what());
-    } catch (const nlohmann::json::type_error& e) {
-      RCLCPP_ERROR(this->get_logger(),
-                   "Type error while reading game_piece_detection config from '%s': %s",
-                   config_file.c_str(), e.what());
-      throw std::runtime_error(std::string("Invalid type in system config JSON: ") + e.what());
-    } catch (const nlohmann::json::out_of_range& e) {
-      RCLCPP_ERROR(this->get_logger(),
-                   "Out-of-range error while reading game_piece_detection config from '%s': %s",
-                   config_file.c_str(), e.what());
-      throw std::runtime_error(std::string("Out-of-range error in system config JSON: ") + e.what());
-    } catch (const std::exception& e) {
-      RCLCPP_ERROR(this->get_logger(),
-                   "Unexpected error while reading system config file '%s': %s",
-                   config_file.c_str(), e.what());
-      throw std::runtime_error(std::string("Unexpected error reading system config: ") + e.what());
+    // Validate input channels: only 1 (grayscale) or 3 (RGB) are supported
+    if (configured_input_channels != 1 && configured_input_channels != 3) {
+      RCLCPP_ERROR(
+          this->get_logger(),
+          "Invalid 'input_channels' value (%d) in game_piece_detection config. "
+          "Supported values are 1 (grayscale) or 3 (RGB).",
+          configured_input_channels);
+      throw std::runtime_error(
+          "Invalid 'input_channels' in game_piece_detection config; must be 1 or 3");
     }
+    input_channels_ = configured_input_channels;
+    // Read class names (optional but recommended)
+    if (gpd.contains("class_names")) {
+      for (const auto& name : gpd["class_names"]) {
+        class_names_.push_back(name.get<std::string>());
+      }
+    }
+
+    RCLCPP_INFO(this->get_logger(),
+                "Loaded game piece detection config: engine=%s, channels=%d, classes=%zu",
+                engine_file_path_.c_str(), input_channels_, class_names_.size());
   }
 
   void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
