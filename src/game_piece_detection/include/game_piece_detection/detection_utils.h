@@ -44,7 +44,8 @@ inline void preprocess_image(const cv::Mat& img, float* output,
     // Convert to grayscale
     cv::cvtColor(resized, processed, cv::COLOR_BGR2GRAY);
   } else {
-    processed = resized;
+    CV_Error(cv::Error::StsBadArg,
+             "preprocess_image supports only 1 or 3 input channels");
   }
 
   // Convert to float and normalize to [0, 1]
