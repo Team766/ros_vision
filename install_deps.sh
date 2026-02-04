@@ -96,6 +96,7 @@ sudo apt-get install -y ros-humble-image-transport
 sudo apt-get install -y libtheora-dev libogg-dev pkg-config
 sudo apt-get install -y ros-humble-foxglove-bridge
 sudo apt-get install -y ros-humble-rosbag2-storage-mcap
+sudo apt-get install -y nvidia-l4t-dla-compiler
 
 
 # Check if clang-17 is installed.
