@@ -19,6 +19,9 @@
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
+constexpr float CONF_THRESHOLD = 0.25f;
+constexpr float IOU_THRESHOLD = 0.45f;
+
 class GamePieceDetector : public rclcpp::Node {
 public:
 GamePieceDetector()
@@ -47,8 +50,80 @@ GamePieceDetector()
     get_extrinsic_params();
 
     // TODO: Initialize ModelInference object with engine file.
-    RCLCPP_INFO(this->get_logger(),
-                "ModelInference Initialization not implemented yet!");
+    fs::path config_path =
+        ament_index_cpp::get_package_share_directory("vision_config_data");
+    fs::path config_file = config_path / "data" / "system_config.json";
+
+    if (!std::filesystem::exists(config_file)) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find system config file at path: %s",
+                   config_file.c_str());
+      return;
+    }
+
+    // Load the parameters from the file.
+    std::ifstream f(config_file);
+    json config_data = json::parse(f);
+
+
+    std::string engine_path = config_data.value("engine_file", "");
+
+    if (engine_path.empty()) {
+      std::cerr << "Error: No engine file specified in config or command line" << std::endl;
+      return 1;
+    }
+
+    if (!fs::exists(engine_path)) {
+      std::cerr << "Error: Engine file not found: " << engine_path << std::endl;
+      return 1;
+    }
+
+    auto start_load = std::chrono::high_resolution_clock::now();
+    ModelInference model(engine_path);
+    auto end_load = std::chrono::high_resolution_clock::now();
+    auto load_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_load - start_load).count();
+    std::cout << "Loaded ModelInference Engine in " << load_time << " ms" << std::endl;
+    
+    int input_channels = model.getInputChannels();
+    int input_height = model.getInputHeight();
+    int input_width = model.getInputWidth();
+    int num_classes = model.getNumClasses();
+    int num_predictions = model.getNumPredictions();
+
+    int config_input_channels = config_data.value("input_channels", 3);
+
+    if (input_channels != config_input_channels) {
+      std::cerr << "Warning: Engine input channels (" << input_channels
+              << ") differs from config (" << config_input_channels << ")" << std::endl;
+    }
+
+    std::vector<std::string> class_names;
+    if (config_data.contains("class_names")) {
+      for (const auto& name : config_data["class_names"]) {
+        class_names.push_back(name.get<std::string>());
+      }
+    }
+
+    size_t input_size = input_channels * input_width * input_height;
+    size_t output_size = model.getOutputSize() / sizeof(float);
+
+    this->declare_parameter<size_t>("input_size",
+                              input_size);
+
+    this->declare_parameter<size_t>("output_size",
+                              output_size);
+
+    this->declare_parameter<int>("input_channels",
+                              input_channels);
+
+    this->declare_parameter<std::string>("class_names",
+                              class_names);
+
+    this->declare_parameter<int>("num_predictions",
+                                num_predictions);
+    
+    this->declare_parameter<int>("num_classes",
+                              num_classes);
   }
 
   void init() {
@@ -212,7 +287,27 @@ private:
   void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
     cv::Mat bgr_img = cv_bridge::toCvCopy(msg, "bgr8")->image;
 
-    // TODO: Run the inference and publish the output to a message.
+    std::vector<float> input_buffer(input_size);
+    std::vector<float> output_buffer(output_size);
+
+    int orig_width = bgr_img.cols;
+    int orig_height = bgr_img.rows;
+
+    preprocess_image(bgr_img, input_buffer.data(), input_width, input_height, input_channels);
+
+
+    auto detections = parse_yolov11_output(
+      output_buffer.data(), num_predictions, num_classes, class_names,
+      CONF_THRESHOLD, IOU_THRESHOLD);
+
+    auto scaled_detections = scale_detections(detections, input_width, input_height,
+                                               orig_width, orig_height);
+
+    std::cout << "  Size: " << orig_width << "x" << orig_height
+            << ", Inference: " << std::fixed << std::setprecision(2) << infer_time << " ms"
+            << ", Detections: " << scaled_detections.size() << std::endl;
+    // TODO: Publish the inference and detections out
+    
     (void)bgr_img;  // Suppress unused warning until inference is implemented
   }
 
@@ -236,6 +331,54 @@ private:
   std::string table_address_;
   std::string table_name_;
 };
+
+/**
+ * Preprocess an image for YOLOv11 inference.
+ * - Resize to model input size
+ * - Convert BGR to RGB (if 3 channels) or grayscale
+ * - Normalize to [0, 1]
+ * - Convert to NCHW format (channels first)
+ *
+ * @param img Input BGR image (any size)
+ * @param output Pre-allocated buffer for output
+ * @param input_width Model input width
+ * @param input_height Model input height
+ * @param input_channels Number of input channels (1 or 3)
+ */
+void preprocess_image(const cv::Mat& img, float* output,
+                      int input_width, int input_height, int input_channels) {
+  // Resize to model input size
+  cv::Mat resized;
+  cv::resize(img, resized, cv::Size(input_width, input_height));
+
+  cv::Mat processed;
+  if (input_channels == 3) {
+    // Convert BGR to RGB
+    cv::cvtColor(resized, processed, cv::COLOR_BGR2RGB);
+  } else if (input_channels == 1) {
+    // Convert to grayscale
+    cv::cvtColor(resized, processed, cv::COLOR_BGR2GRAY);
+  } else {
+    processed = resized;
+  }
+
+  // Convert to float and normalize to [0, 1]
+  cv::Mat float_img;
+  int cv_type = (input_channels == 1) ? CV_32FC1 : CV_32FC3;
+  processed.convertTo(float_img, cv_type, 1.0 / 255.0);
+
+  // Convert from HWC to CHW (NCHW with batch=1)
+  size_t channel_size = input_width * input_height;
+  if (input_channels == 1) {
+    memcpy(output, float_img.data, channel_size * sizeof(float));
+  } else {
+    std::vector<cv::Mat> channels(input_channels);
+    cv::split(float_img, channels);
+    for (int c = 0; c < input_channels; ++c) {
+      memcpy(output + c * channel_size, channels[c].data, channel_size * sizeof(float));
+    }
+  }
+}
 
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
