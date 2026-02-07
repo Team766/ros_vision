@@ -53,6 +53,10 @@ target_link_libraries(gamepiece_detection_node
     ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libwpiutil.so
     nvinfer
     CUDA::cudart)
+set_target_properties(gamepiece_detection_node PROPERTIES
+    BUILD_RPATH "${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/"
+    INSTALL_RPATH "${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/"
+    INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # Detection test executable (standalone, no ROS dependencies)
 add_executable(detection_test src/detection_test.cpp)
