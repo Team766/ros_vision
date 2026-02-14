@@ -14,5 +14,3 @@ ENV PATH="$PATH:/usr/local/cuda/bin"
 RUN useradd -m -s /bin/bash -G sudo vscode \
  && echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/vscode
 
-USER vscode
-WORKDIR /workspaces/ros_vision
