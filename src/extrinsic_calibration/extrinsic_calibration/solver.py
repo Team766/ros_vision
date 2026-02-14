@@ -13,7 +13,11 @@ import os
 
 # Try to import from local utils, fallback to standalone utils
 try:
-    from .utils import read_yaml_file, compose_rotations_xyz_torch, camera_to_robot_torch
+    from .utils import (
+        read_yaml_file,
+        compose_rotations_xyz_torch,
+        camera_to_robot_torch,
+    )
 except ImportError:
     # Standalone mode - import from same directory
     from utils import read_yaml_file, compose_rotations_xyz_torch, camera_to_robot_torch
@@ -29,6 +33,12 @@ def get_files(dir_name):
     Returns:
         list: List of file paths matching the PNG file pattern.
     """
+
+    import os
+
+    if not os.path.exists(dir_name):
+        raise Exception(f"Error: directory does not exist {dir_name}")
+
     files = glob.glob(os.path.join(dir_name, "*.png"))
     return files
 
@@ -355,7 +365,7 @@ def main(args=None):
     )
     parser.add_argument("config", type=str, help="Path to configuration file")
     parsed_args = parser.parse_args(args)
-    
+
     config = read_yaml_file(parsed_args.config)
 
     camera_info, camera_params = setup_cameras(config)

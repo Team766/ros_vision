@@ -1,16 +1,16 @@
-frameset_dir: "/home/cpadwick/code/calibration_data/calibration_data_2025_09_03_19_14_20"
+frameset_dir: "/home/cpadwick/code/ros_vision/2026crunch/calibration_data_2026_02_13_20_53_19/"
 num_iterations: 500
 learning_rate: 0.01
 cameras:
-  cam11:
-    intrinsics_filename: "/home/cpadwick/code/ros_vision/src/vision_config_data/data/calibration/calibrationmatrix_cam11.json"
-    initial_rotations_degrees: [0.0, 0.0, 30.0]
-    initial_translation_meters: [ 0.3302, -0.3048, 0.2159]
+  cam13:
+    intrinsics_filename: "/home/cpadwick/code/ros_vision/src/vision_config_data/data/calibration/calibrationmatrix_cam13.json"
+    initial_rotations_degrees: [0.0, 0.0, -90.0]
+    initial_translation_meters: [-0.015875, 0.3556, 0.4826]
     rotation_params_adjustable: True
     translation_params_adjustable: True
-  cam12:
-    intrinsics_filename: "/home/cpadwick/code/ros_vision/src/vision_config_data/data/calibration/calibrationmatrix_cam12.json"
-    initial_rotations_degrees: [0.0, 0.0, -30.0]
-    initial_translation_meters: [ 0.3302, 0.3048, 0.2159]
+  cam14:
+    intrinsics_filename: "/home/cpadwick/code/ros_vision/src/vision_config_data/data/calibration/calibrationmatrix_cam14.json"
+    initial_rotations_degrees: [0.0, 0.0, -90.0]
+    initial_translation_meters: [0.1397, 0.3556, 0.4826]
     rotation_params_adjustable: True
     translation_params_adjustable: True
