@@ -1,7 +1,7 @@
 {
     "name": "ROS Vision Development",
     "dockerFile": "../Dockerfile",
-    "remoteUser": "vscode",
+    "remoteUser": "root",
     "customizations": {
         "vscode": {
             "extensions": [
