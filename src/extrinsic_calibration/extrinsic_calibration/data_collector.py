@@ -13,7 +13,7 @@ import re
 import logging
 from typing import Dict, List, Any
 
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
 
 
@@ -169,8 +169,8 @@ class DataCollectorNode(Node):
             location = camera_config.get('location', serial_id)
             
             # Create image publisher for this camera
-            topic_name = f'/cameras/{location}/image_raw'
-            publisher = self.create_publisher(Image, topic_name, 10)
+            topic_name = f'/cameras/{location}/image_raw/compressed'
+            publisher = self.create_publisher(CompressedImage, topic_name, 10)
             self.image_publishers[serial_id] = publisher
             
             self.cameras.append({
@@ -223,10 +223,10 @@ class DataCollectorNode(Node):
                 
                 # Publish image to ROS topic
                 try:
-                    ros_image = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
-                    ros_image.header.stamp = self.get_clock().now().to_msg()
-                    ros_image.header.frame_id = f'camera_{cam["location"]}'
-                    cam["publisher"].publish(ros_image)
+                    compressed_msg = self.bridge.cv2_to_compressed_imgmsg(frame, dst_format='jpg')
+                    compressed_msg.header.stamp = self.get_clock().now().to_msg()
+                    compressed_msg.header.frame_id = f'camera_{cam["location"]}'
+                    cam["publisher"].publish(compressed_msg)
                 except Exception as e:
                     self.get_logger().warning(f'Failed to publish image for {cam["name"]}: {e}')
                     
