@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "src/apriltags_cuda/proto/Apriltag.pb.h"
+#include "src/apriltags_cuda/proto/apriltag.pb.h"
 
 #include "networktables/DoubleArrayTopic.h"
 #include "networktables/NetworkTable.h"

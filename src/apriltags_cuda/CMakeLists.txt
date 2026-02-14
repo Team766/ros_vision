@@ -70,7 +70,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
 find_package(Protobuf REQUIRED)
 
-protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS src/apriltags_cuda/proto/Apriltag.proto)
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS src/apriltags_cuda/proto/apriltag.proto)
 
 set(CUDA_LIB_SOURCES 
     src/apriltag_detect.cu 
