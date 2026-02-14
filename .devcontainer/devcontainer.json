@@ -1,6 +1,6 @@
 {
     "name": "ROS Vision Development",
-    "dockerFile": "../Dockerfile",
+    "dockerFile": "../Dockerfile-Codespace",
     "remoteUser": "vscode",
     "customizations": {
         "vscode": {
