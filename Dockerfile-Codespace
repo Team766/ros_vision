@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
     cuda-toolkit-11-8 \
     && rm -rf /var/lib/apt/lists/*
 
+ # Install colcon
+RUN python3 -m pip install --no-cache-dir colcon-common-extensions
+
 # Create non-root user
 RUN useradd -m -s /bin/bash -G sudo vscode \
  && echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/vscode
