@@ -43,7 +43,7 @@ RUN apt-get update && apt-get install -y sudo git vim lsb-release software-prope
  && rm -rf /usr/lib/mono \
  && rm -rf /usr/lib/heroku \
  && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
  && docker system prune -af \
  && docker builder prune -af
 
