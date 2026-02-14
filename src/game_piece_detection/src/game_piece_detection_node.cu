@@ -69,13 +69,14 @@ GamePieceDetector()
     std::string engine_path = config_data.value("engine_file", "");
 
     if (engine_path.empty()) {
-      std::cerr << "Error: No engine file specified in config or command line" << std::endl;
-      return 1;
+      RCLCPP_ERROR(this->get_logger(),
+          "Error: No engine file specified in config or command line");
     }
 
     if (!fs::exists(engine_path)) {
-      std::cerr << "Error: Engine file not found: " << engine_path << std::endl;
-      return 1;
+      RCLCPP_ERROR(this->get_logger(),
+          "Error: Engine path not found: %s",
+          engine_path.c_str());
     }
 
     auto start_load = std::chrono::high_resolution_clock::now();
@@ -84,46 +85,29 @@ GamePieceDetector()
     auto load_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_load - start_load).count();
     std::cout << "Loaded ModelInference Engine in " << load_time << " ms" << std::endl;
     
-    int input_channels = model.getInputChannels();
+    input_channels_ = model.getInputChannels();
     int input_height = model.getInputHeight();
     int input_width = model.getInputWidth();
-    int num_classes = model.getNumClasses();
-    int num_predictions = model.getNumPredictions();
+    num_classes_ = model.getNumClasses();
+    num_predictions_ = model.getNumPredictions();
 
-    int config_input_channels = config_data.value("input_channels", 3);
+    input_channels_ = config_data.value("input_channels", 3);
+
+    input_size_ = input_channels_ * input_width * input_height;
+    output_size_ = model.getOutputSize() / sizeof(float);
 
     if (input_channels != config_input_channels) {
       std::cerr << "Warning: Engine input channels (" << input_channels
               << ") differs from config (" << config_input_channels << ")" << std::endl;
     }
 
-    std::vector<std::string> class_names;
     if (config_data.contains("class_names")) {
       for (const auto& name : config_data["class_names"]) {
-        class_names.push_back(name.get<std::string>());
+        class_names_.push_back(name.get<std::string>());
       }
     }
 
-    size_t input_size = input_channels * input_width * input_height;
-    size_t output_size = model.getOutputSize() / sizeof(float);
 
-    this->declare_parameter<size_t>("input_size",
-                              input_size);
-
-    this->declare_parameter<size_t>("output_size",
-                              output_size);
-
-    this->declare_parameter<int>("input_channels",
-                              input_channels);
-
-    this->declare_parameter<std::string>("class_names",
-                              class_names);
-
-    this->declare_parameter<int>("num_predictions",
-                                num_predictions);
-    
-    this->declare_parameter<int>("num_classes",
-                              num_classes);
   }
 
   void init() {
@@ -330,6 +314,18 @@ private:
   // NetworkTables config
   std::string table_address_;
   std::string table_name_;
+
+  size_t input_size_;
+  size_t output_size_;
+
+  int input_channels_;
+
+  std:vector<std::string> class_names_;
+
+  int num_predictions_;
+
+  int num_classes_;
+  
 };
 
 /**
