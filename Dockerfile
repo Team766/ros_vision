@@ -10,7 +10,4 @@ RUN chmod +x /install_deps.sh
 RUN /install_deps.sh
 ENV PATH="$PATH:/usr/local/cuda/bin"
 
-# Create non-root user for development
-RUN useradd -m -s /bin/bash -G sudo vscode \
- && echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/vscode
 
