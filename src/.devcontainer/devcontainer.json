@@ -1,46 +1,15 @@
 {
-    "name": "ros2_vision",
-    "build": {
-        // Use the Dockerfile from the root of the repo, matching the manual build instructions
-        "dockerfile": "../Dockerfile",
-        "context": ".."
-    },
+    "name": "ROS Vision Development",
+    "dockerFile": "../Dockerfile",
+    "remoteUser": "root",
     "customizations": {
         "vscode": {
             "extensions": [
-                "ms-iot.vscode-ros",
-                "ms-python.python",
-                "ms-vscode.cpptools",
                 "ms-vscode.cmake-tools",
-                "twxs.cmake"
+                "ms-python.python"
             ]
         }
     },
-    // Ensure the user inside the container has root access to install packages if needed,
-    // or matches the user defined in the Dockerfile (typically 'ros' or 'root').
-    // If the Dockerfile sets a USER, you might want to comment this out or set it to that user.
-    // "remoteUser": "root",
-    // OPTIONAL: Features to add common utilities that might be missing from a bare/deployment image
-    "features": {
-        "ghcr.io/devcontainers/features/common-utils:2": {
-            // "installZsh": "true",
-            // "username": "vscode",
-            "upgradePackages": "false"
-        },
-        "ghcr.io/devcontainers/features/git:1": {}
-    },
-    // Arguments to pass to 'docker run'. 
-    // '--network=host' is often useful for ROS 2 discovery, though Codespaces handles ports differently.
-    // '--privileged' is often needed for hardware access (USB/Camera) if you were running locally.
-    "runArgs": [
-        "--network=host",
-        "--cap-add=SYS_PTRACE",
-        "--security-opt",
-        "seccomp=unconfined"
-    ],
-    // Post-create command: Run any setup commands here (like rosdep update or building the workspace)
-    // "postCreateCommand": "apt-get update && rosdep update && colcon build",
-    // Override the default command to ensure the container stays running indefinitely 
-    // (prevents the container from exiting if the Dockerfile CMD is a short-lived script)
-    "overrideCommand": true
+    "postCreateCommand": "mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release .. && make -j4",
+    "forwardPorts": []
 }
