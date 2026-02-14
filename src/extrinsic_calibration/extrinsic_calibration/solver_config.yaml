@@ -1,5 +1,5 @@
 frameset_dir: "/home/cpadwick/code/ros_vision/2026crunch/calibration_data_2026_02_13_20_53_19/"
-num_iterations: 500
+num_iterations: 2000 
 learning_rate: 0.01
 cameras:
   cam13:

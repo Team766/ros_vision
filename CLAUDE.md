@@ -27,6 +27,9 @@ colcon build --packages-select apriltags_cuda
 colcon build --packages-select usb_camera
 colcon build --packages-select vision_utils
 colcon build --packages-select game_piece_detection
+
+# Config-only change (no C++ recompile needed)
+colcon build --packages-select vision_config_data
 ```
 
 ### Testing
@@ -43,6 +46,8 @@ colcon build --packages-select game_piece_detection
 # View test results
 colcon test-result --all
 ```
+
+Tests use `ament_cmake_gtest`. CUDA test files use `.cu` extension. The `gpu_detector_test` requires an NVIDIA GPU; all other tests are CPU-only.
 
 ### Release and Deployment
 ```bash
@@ -62,10 +67,14 @@ colcon test-result --all
 ./version_manager.sh bump patch
 ```
 
-Bundles are `ros_vision_bundle-v{version}.tar.gz` containing the full install directory with dereferenced symlinks for portable deployment.
+Bundles are `ros_vision_bundle-v{version}.tar.gz` containing the full install directory with dereferenced symlinks for portable deployment. Workspace version lives in `VERSION` file (separate from per-package `package.xml` versions).
 
 ## Launch
 ```bash
+# Recommended: convenience script that sources everything
+./start_vision.bsh
+
+# Manual launch
 source install/setup.bash
 ros2 launch ros_vision_launch launch_vision.py
 
@@ -80,51 +89,51 @@ ros2 launch ros_vision_launch launch_vision.py log_level:=debug
 
 ## High-Level Architecture
 
-ROS2 Humble computer vision system for FRC Team 766. Provides real-time AprilTag detection (CUDA-accelerated) and game piece detection (YOLOv11/TensorRT).
+ROS2 Humble computer vision system for FRC Team 766. Provides real-time AprilTag detection (CUDA-accelerated) and game piece detection (YOLOv11/TensorRT). Deployed on Jetson Orin.
 
 ### Pipeline Flow
 
 1. **usb_camera** captures frames, publishes to `cameras/{location}/image_raw`
 2. **apriltags_cuda** subscribes, runs full detection on GPU, publishes poses to `apriltags/{location}/pose` and annotated images to `apriltags/{location}/images`
 3. **game_piece_detection** runs YOLOv11 via TensorRT for object detection
-4. Pose estimates are sent to robot via WPILib **NetworkTables**
+4. Pose estimates are sent to robot via WPILib **NetworkTables** (address configured in `system_config.json` under `network_tables_config`)
 
 ### Camera Auto-Discovery
 
-The launch system (`src/ros_vision_launch/launch/launch_vision.py`) scans `/dev/v4l/by-id/` for cameras, extracts serial numbers, maps them to locations via `system_config.json`, and generates camera + detector node pairs dynamically. Topic names use `{location}` template substitution to scale automatically.
+The launch system (`src/ros_vision_launch/launch/launch_vision.py`) scans `/dev/v4l/by-id/` for cameras, extracts serial numbers, maps them to locations via `system_config.json` `camera_mounted_positions`, and generates camera + detector node pairs dynamically. Topic names use `{location}` template substitution (e.g., `cameras/center/image_raw`) to scale automatically with no code changes when adding cameras.
 
 ### Configuration System
 
 All configuration lives in `src/vision_config_data/data/`:
-- **`system_config.json`** - Central config: camera serial-to-location mapping, camera settings (resolution, format, frame rate), extrinsics (rotation matrices + offsets), bag recording topics, CPU pinning config, NetworkTables address, game piece detection settings
+- **`system_config.json`** - Central config: camera serial-to-location mapping (`camera_mounted_positions`), per-camera settings (resolution, format, frame rate, API preference), extrinsics (rotation matrices + offsets), bag recording topics, CPU pinning config, NetworkTables address, game piece detection settings
 - **`calibration/calibrationmatrix_{serial}.json`** - Per-camera intrinsic calibration
 
-Changing config only requires rebuilding `vision_config_data`, not C++ packages.
+Changing config only requires rebuilding `vision_config_data` (`colcon build --packages-select vision_config_data`), not C++ packages.
 
 ### Build System Details
 
 - Uses **Clang 17** as both C++ and CUDA compiler (better C++20 support than nvcc)
-- `CMAKE_CUDA_ARCHITECTURES` in `build_env_vars.sh` must match your GPU (default: 87 for Jetson Orin)
+- `CMAKE_CUDA_ARCHITECTURES` in `build_env_vars.sh` must match your GPU (default: 87 for Jetson Orin). Find yours with `nvidia-smi --query-gpu compute_cap --format=csv` (report format `X.Y`, config needs `XY`)
 - External dependencies built from source via `ExternalProject_Add` in `src/external/CMakeLists.txt`: OpenCV 4.9.0 (with CUDA), WPILib, NVIDIA CCCL, nlohmann/json, AprilTag (FRC 971 fork), Seasocks
-- Custom OpenCV must build **before** cv_bridge (bootstrap.sh handles ordering)
+- Custom OpenCV must build **before** cv_bridge (`bootstrap.sh` handles ordering)
 - All packages link explicitly to custom deps via RPATH to avoid system library conflicts
 - Code style: Google C++ (clang-format)
 
 ### Packages
 
 - **apriltags_cuda** - CUDA kernels for full GPU-side AprilTag detection pipeline (threshold -> label -> quad detect -> decode -> pose). Custom ROS messages: `TagDetection.msg`, `TagDetectionArray.msg`
-- **usb_camera** - Camera capture with OpenCV backend, abstracted camera interface for testability
-- **game_piece_detection** - YOLOv11 inference via TensorRT (FP16/INT8). Model pipeline: PyTorch (.pt) -> ONNX -> TensorRT (.engine)
+- **usb_camera** - Camera capture with OpenCV backend, abstracted camera interface for testability (see `test/mock_camera.hpp`)
+- **game_piece_detection** - YOLOv11 inference via TensorRT (FP16/INT8). Model pipeline: PyTorch (.pt) -> ONNX -> TensorRT (.engine). Models downloaded via `src/game_piece_detection/models/download_models.sh`
 - **vision_utils** - Shared library: `ConfigLoader` (JSON config), `ProcessScheduler` (CPU pinning + RT scheduling), rotation utilities
 - **vision_config_data** - JSON config files, calibration data (ament resource package)
-- **ros_vision_launch** - Launch files with auto-discovery logic
+- **ros_vision_launch** - Launch files with auto-discovery logic. Utility functions in `src/ros_vision_launch/ros_vision_launch/utils.py`
 - **camera_calibration** / **extrinsic_calibration** - Calibration tools (Charuco/Checkerboard)
 - **seasocks_viewer** - WebSocket-based image viewer
 - **external/vision_deps** - All third-party dependency builds
 
 ### CPU Pinning Pattern
 
-Nodes accept `pin_to_core` and `priority` ROS parameters. The launch system assigns sequential cores: camera N gets core N*2, its detector gets core N*2+1. Available cores are configured in `system_config.json` under `performance_optimization`.
+Nodes accept `pin_to_core` and `priority` ROS parameters. The launch system assigns sequential cores: camera N gets core N*2, its detector gets core N*2+1. Available cores are configured in `system_config.json` under `performance_optimization`. Requires `rtprio` permissions in `/etc/security/limits.conf`.
 
 ### CI/CD
 
