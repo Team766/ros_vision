@@ -26,6 +26,7 @@ class CharucoCalibrationNode2(Node):
         self.declare_parameter('marker_length', 0.045)
         self.declare_parameter('max_frames', 30)
         self.declare_parameter('frame_rate_hz', 2.0)
+        self.declare_parameter('consecutive_frames_required', 5)
         self.declare_parameter('publisher_topic',
                                '/calibration/image_annotated/compressed')
 
@@ -43,6 +44,8 @@ class CharucoCalibrationNode2(Node):
         self.marker_length = self.get_parameter('marker_length').value
         self.max_frames = self.get_parameter('max_frames').value
         self.frame_rate_hz = self.get_parameter('frame_rate_hz').value
+        self.consecutive_frames_required = self.get_parameter(
+            'consecutive_frames_required').value
         publisher_topic = self.get_parameter('publisher_topic').value
 
         self.bridge = CvBridge()
@@ -154,6 +157,7 @@ class CharucoCalibrationNode2(Node):
         all_corners = []
         all_ids = []
         captured_frames = 0
+        consecutive_detected = 0
         image_size = None
 
         while captured_frames < self.max_frames:
@@ -172,19 +176,29 @@ class CharucoCalibrationNode2(Node):
                 self.detector.detectBoard(gray)
 
             if corners is not None and ids is not None and len(ids) >= 8:
-                all_corners.append(corners)
-                all_ids.append(ids)
-                captured_frames += 1
-                self.get_logger().info(
-                    f"Captured frame {captured_frames}/{self.max_frames} "
-                    f"({len(ids)} corners detected)")
+                consecutive_detected += 1
 
                 aruco.drawDetectedCornersCharuco(
                     frame, corners, ids, (0, 255, 0))
                 aruco.drawDetectedMarkers(
                     frame, marker_corners, marker_ids)
+
+                if consecutive_detected >= self.consecutive_frames_required:
+                    all_corners.append(corners)
+                    all_ids.append(ids)
+                    captured_frames += 1
+                    consecutive_detected = 0
+                    self.get_logger().info(
+                        f"Captured frame {captured_frames}/{self.max_frames} "
+                        f"({len(ids)} corners detected)")
+                else:
+                    self.get_logger().info(
+                        f"Board detected ({consecutive_detected}/"
+                        f"{self.consecutive_frames_required} consecutive)")
+
                 self._publish_annotated(frame)
             else:
+                consecutive_detected = 0
                 num_ids = len(ids) if ids is not None else 0
                 self.get_logger().info(
                     f"Board not detected (corners: {num_ids}, "
