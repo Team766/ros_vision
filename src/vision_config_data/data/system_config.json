@@ -61,8 +61,8 @@
                 ]
             ],
             "offset": [
-                0.14321883022785187,
-                0.35638904571533203,
+                0.1339188302,
+                0.354810953140258,
                 0.48386576771736145
             ]
         },
@@ -85,8 +85,8 @@
                 ]
             ],
             "offset": [
-                -0.01939368061721325,
-                0.3548109531402588,
+                -0.02939368062,
+                0.356389045715332,
                 0.4813345670700073
             ]
         },
@@ -190,6 +190,8 @@
     "game_piece_detection": {
         "engine_file": "install/game_piece_detection/share/game_piece_detection/models/2026_rebuilt/rgb/rebuilt-yolov11-orin-fp16.engine",
         "input_channels": 3,
-        "class_names": ["ball"]
+        "class_names": [
+            "ball"
+        ]
     }
 }
