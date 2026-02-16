@@ -49,6 +49,11 @@ colcon test-result --all
 
 Tests use `ament_cmake_gtest`. CUDA test files use `.cu` extension. The `gpu_detector_test` requires an NVIDIA GPU; all other tests are CPU-only.
 
+To run a single test by name (useful during development):
+```bash
+colcon test --packages-select apriltags_cuda --ctest-args "-R" "coordinate_transform_test"
+```
+
 ### Release and Deployment
 ```bash
 # Full release: bump version, build, bundle, git tag
@@ -69,6 +74,16 @@ Tests use `ament_cmake_gtest`. CUDA test files use `.cu` extension. The `gpu_det
 
 Bundles are `ros_vision_bundle-v{version}.tar.gz` containing the full install directory with dereferenced symlinks for portable deployment. Workspace version lives in `VERSION` file (separate from per-package `package.xml` versions).
 
+### Docker Build
+```bash
+docker build -t ros_vision:latest .
+docker run -it -v/tmp:/tmp --runtime=nvidia --gpus all -p 8765:8765 \
+  -v /dev/v4l/:/dev/v4l --device /dev/video0 \
+  --user $(id -u):$(id -g) -e USER=$USER -e HOME=$HOME \
+  -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro \
+  -v /home/$USER:/home/$USER ros_vision:latest /bin/bash
+```
+
 ## Launch
 ```bash
 # Recommended: convenience script that sources everything
@@ -85,6 +100,17 @@ ros2 launch ros_vision_launch launch_vision.py log_level:=debug
 
 # Optimized launch with CPU pinning and real-time scheduling
 ./optimized_launch.bsh
+
+# Measurement mode (generates timing CSV for latency analysis)
+./start_vision.bsh measurement_mode:=true
+# Then analyze with: python src/vision_utils/timing_report.py <csv_file>
+```
+
+### Install as System Service
+```bash
+./install_service.bsh
+systemctl status ros_vision.service
+journalctl -u ros_vision.service
 ```
 
 ## High-Level Architecture
@@ -129,6 +155,8 @@ Changing config only requires rebuilding `vision_config_data` (`colcon build --p
 - **ros_vision_launch** - Launch files with auto-discovery logic. Utility functions in `src/ros_vision_launch/ros_vision_launch/utils.py`
 - **camera_calibration** / **extrinsic_calibration** - Calibration tools (Charuco/Checkerboard)
 - **seasocks_viewer** - WebSocket-based image viewer
+- **bag_utils** - Python utilities for extracting images from ROS bag files
+- **image_transport_plugins** / **vision_opencv** - Vendored ROS packages (cv_bridge, image_transport) built from source to link against the custom OpenCV
 - **external/vision_deps** - All third-party dependency builds
 
 ### CPU Pinning Pattern

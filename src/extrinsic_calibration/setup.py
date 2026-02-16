@@ -21,6 +21,7 @@ setup(
         'console_scripts': [
             'data_collector = extrinsic_calibration.data_collector:main',
             'solver = extrinsic_calibration.solver:main',
+            'solver_rotating_platform = extrinsic_calibration.solver_rotating_platform:main',
         ],
     },
 )
