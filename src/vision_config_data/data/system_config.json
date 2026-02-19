@@ -1,21 +1,5 @@
 {
     "camera_mounted_positions": {
-        "00": {
-            "location": "right_front",
-            "format": "MJPG",
-            "height": 1080,
-            "width": 1920,
-            "frame_rate": 30,
-            "api_preference": "V4L2"
-        },
-        "12": {
-            "location": "left_front",
-            "format": "MJPG",
-            "height": 600,
-            "width": 800,
-            "frame_rate": 30,
-            "api_preference": "ANY"
-        },
         "cam13": {
             "location": "left",
             "format": "MJPG",
@@ -32,8 +16,16 @@
             "frame_rate": 100,
             "api_preference": "V4L2"
         },
+ 	"766": {
+            "location": "right",
+            "format": "MJPG",
+            "height": 800,
+            "width": 1280,
+            "frame_rate": 100,
+            "api_preference": "V4L2"
+        },
         "test_camera": {
-            "location": "center_front",
+            "location": "test",
             "format": "MJPG",
             "height": 480,
             "width": 640,
@@ -114,7 +106,7 @@
                 0.22532792389392853
             ]
         },
-        "left_back": {
+        "test": {
             "rotation": [
                 [
                     0.018362795934081078,
@@ -136,30 +128,6 @@
                 0.09344450384378433,
                 0.3054337203502655,
                 0.388673335313797
-            ]
-        },
-        "right_back": {
-            "rotation": [
-                [
-                    -0.018342308700084686,
-                    -0.38502153754234314,
-                    -0.922725260257721
-                ],
-                [
-                    0.9998031258583069,
-                    -7.67350138630718e-05,
-                    -0.019842475652694702
-                ],
-                [
-                    0.007568974979221821,
-                    -0.9229075908660889,
-                    0.38494712114334106
-                ]
-            ],
-            "offset": [
-                0.02655547298491001,
-                -0.3144337236881256,
-                0.27332666516304016
             ]
         }
     },
