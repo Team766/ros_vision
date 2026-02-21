@@ -6,12 +6,13 @@
 #include <cstdint>
 
 #include "apriltag.pb.h"
-#include "networktables/ProtobufTopic.h"
+#include "wpi/protobuf/Protobuf.h"
 
 namespace wpi {
 
 template <>
 struct Protobuf<com::team766::vision::ApriltagProto> {
+  using Message = google::protobuf::Message;
   static std::string_view GetTypeName() {
     return "com.team766.vision.ApriltagProto";
   }
@@ -36,6 +37,7 @@ struct Protobuf<com::team766::vision::ApriltagProto> {
 
 template <>
 struct Protobuf<com::team766::vision::ApriltagListProto> {
+  using Message = google::protobuf::Message;
   static std::string_view GetTypeName() {
     return "com.team766.vision.ApriltagListProto";
   }

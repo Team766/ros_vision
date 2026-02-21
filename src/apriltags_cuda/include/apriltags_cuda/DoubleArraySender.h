@@ -23,4 +23,4 @@ class DoubleArraySender {
   void setDefaultValue(std::vector<double> value);
 };
 
-#endif
+#endif // DOUBLEARRAYSENDER_H

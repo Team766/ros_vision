@@ -6,10 +6,11 @@
  */
 ApriltagsDetector::ApriltagsDetector()
     : Node("apriltags_detector"),
+      tag_sender_(nullptr),
+      proto_tag_sender_(nullptr),
       tag_family_(nullptr),
       tag_detector_(nullptr),
-      detector_(nullptr),
-      proto_tag_sender_(nullptr) {
+      detector_(nullptr) {
   setup_topics();
   get_network_tables_params();
   setup_apriltags();
@@ -22,10 +23,11 @@ ApriltagsDetector::ApriltagsDetector()
  */
 ApriltagsDetector::ApriltagsDetector(bool bypass_init)
     : Node("apriltags_detector"),
+      tag_sender_(nullptr),
+      proto_tag_sender_(nullptr),
       tag_family_(nullptr),
       tag_detector_(nullptr),
-      detector_(nullptr),
-      proto_tag_sender_(nullptr) {
+      detector_(nullptr) {
   if (!bypass_init) {
     setup_topics();
     get_network_tables_params();
