@@ -8,10 +8,15 @@ the Orin. Later, this should be changed to a new table, such as /Orin or
 
 AprilTagDataSender::AprilTagDataSender(const std::string& key,
                                        const std::string& table_address,
-                                       const std::string& table_name) {
-  inst_ = nt::NetworkTableInstance::GetDefault();
-  inst_.SetServer(table_address.c_str());
-  inst_.StartClient4(table_address.c_str());
+                                       const std::string& table_name,
+                                       nt::NetworkTableInstance* inst) {
+  if (inst == nullptr) {
+    inst_ = nt::NetworkTableInstance::GetDefault();
+    inst_.SetServer(table_address.c_str());
+    inst_.StartClient4(table_address.c_str());
+  } else {
+    inst_ = *inst;
+  }
   auto table = inst_.GetTable(table_name);
 
   // Double Array Topic

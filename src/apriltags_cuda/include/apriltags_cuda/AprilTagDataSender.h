@@ -20,7 +20,8 @@ class AprilTagDataSender {
  public:
   AprilTagDataSender(const std::string& key,
                      const std::string& table_address,
-                     const std::string& table_name);
+                     const std::string& table_name,
+                     nt::NetworkTableInstance* inst = nullptr);
 
   void sendValue(const std::vector<double>& value);
   void sendProtobuf(const com::team766::vision::ApriltagListProto& value);
