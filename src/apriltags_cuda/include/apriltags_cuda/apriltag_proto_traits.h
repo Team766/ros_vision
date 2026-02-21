@@ -6,7 +6,7 @@
 #include <cstdint>
 
 #include "apriltag.pb.h"
-#include "wpi/Protobuf.h"
+#include "networktables/ProtobufTopic.h"
 
 namespace wpi {
 

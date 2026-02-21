@@ -13,9 +13,6 @@ class DoubleArraySender {
   std::shared_ptr<nt::NetworkTable> table_;
   nt::DoubleArrayPublisher publisher_;
 
-  std::string table_name_;
-  std::string table_address_;
-
  public:
   // Constructor declaration
   DoubleArraySender(const std::string& key,
@@ -25,7 +22,5 @@ class DoubleArraySender {
   void sendValue(std::vector<double> value);
   void setDefaultValue(std::vector<double> value);
 };
-
-#endif
 
 #endif
