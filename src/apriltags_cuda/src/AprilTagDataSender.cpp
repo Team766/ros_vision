@@ -7,15 +7,15 @@ the Orin. Later, this should be changed to a new table, such as /Orin or
 */
 
 AprilTagDataSender::AprilTagDataSender(const std::string& key,
-                                       const std::string& table_name,
-                                       const std::string& table_address) {
+                                       const std::string& table_address,
+                                       const std::string& table_name) {
   inst_ = nt::NetworkTableInstance::GetDefault();
   inst_.SetServer(table_address.c_str());
-  inst_.StartClient4("Orin");
-  table_ = inst_.GetTable(table_name);
+  inst_.StartClient4(table_address.c_str());
+  auto table = inst_.GetTable(table_name);
 
   // Double Array Topic
-  nt::DoubleArrayTopic da_topic = table_->GetDoubleArrayTopic(key);
+  nt::DoubleArrayTopic da_topic = table->GetDoubleArrayTopic(key);
   publisher_ = da_topic.Publish();
 
   // Protobuf Topic
@@ -26,6 +26,7 @@ AprilTagDataSender::AprilTagDataSender(const std::string& key,
 
 void AprilTagDataSender::sendValue(const std::vector<double>& value) {
   publisher_.Set(value);
+  inst_.Flush();
 }
 
 void AprilTagDataSender::sendProtobuf(const com::team766::vision::ApriltagListProto& value) {
@@ -34,8 +35,6 @@ void AprilTagDataSender::sendProtobuf(const com::team766::vision::ApriltagListPr
 
 void AprilTagDataSender::setDefaultValue(const std::vector<double>& value) {
   publisher_.SetDefault(value);
-}
-
-void AprilTagDataSender::flush() {
   inst_.Flush();
 }
+
