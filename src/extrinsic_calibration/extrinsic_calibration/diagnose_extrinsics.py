@@ -243,14 +243,15 @@ def compute_statistics(observations):
     return tag_stats, disagreements
 
 
-def plot_tag_positions(tag_stats, output_prefix="extrinsics_diag"):
+def plot_tag_positions(tag_stats, output_prefix="extrinsics_diag", tag_world_positions=None):
     """
-    Generate scatter plots of tag positions in robot frame.
+    Generate scatter plots of tag positions in robot frame and world frame.
 
     Creates:
-    - XY plot (top-down view)
-    - XZ plot (side view)
+    - XY plot (top-down view, robot frame)
+    - XZ plot (side view, robot frame)
     - Distance-from-origin over frame number (per tag)
+    - 3D + XY world position plots (if tag_world_positions provided)
     """
     try:
         import matplotlib
@@ -334,6 +335,54 @@ def plot_tag_positions(tag_stats, output_prefix="extrinsics_diag"):
         plt.close(fig)
 
     print(f"Saved per-tag XY plots for {len(tag_stats)} tags")
+
+    # 3D scatter of tag world positions (if available)
+    if tag_world_positions is not None:
+        fig = plt.figure(figsize=(12, 10))
+        ax = fig.add_subplot(111, projection="3d")
+
+        for i, (tag_id, pos) in enumerate(sorted(tag_world_positions.items())):
+            color = colors[i % len(colors)]
+            ax.scatter(pos[0], pos[1], pos[2], s=150, color=color,
+                       edgecolors="black", linewidths=1, zorder=5)
+            ax.text(pos[0], pos[1], pos[2] + 0.03, f"Tag {tag_id}", fontsize=9,
+                    ha="center", fontweight="bold")
+
+        # Robot center at origin
+        ax.scatter(0, 0, 0, s=200, c="red", marker="+", linewidths=3, zorder=10)
+        ax.text(0, 0, -0.05, "Robot", fontsize=9, ha="center", color="red")
+
+        ax.set_xlabel("X (m)")
+        ax.set_ylabel("Y (m)")
+        ax.set_zlabel("Z (m)")
+        ax.set_title("Solved Tag Positions in World Frame (3D)")
+        ax.view_init(elev=25, azim=-60)
+
+        fname = f"{output_prefix}_3d_world.png"
+        fig.savefig(fname, dpi=150, bbox_inches="tight")
+        print(f"Saved: {fname}")
+        plt.close(fig)
+
+        # Also a 2D top-down (XY) world view
+        fig, ax = plt.subplots(figsize=(10, 8))
+        for i, (tag_id, pos) in enumerate(sorted(tag_world_positions.items())):
+            color = colors[i % len(colors)]
+            ax.scatter(pos[0], pos[1], s=100, color=color, edgecolors="black",
+                       linewidths=1, zorder=5)
+            ax.annotate(f"Tag {tag_id}", (pos[0], pos[1]),
+                        textcoords="offset points", xytext=(8, 8), fontsize=9)
+        ax.plot(0, 0, "r+", markersize=20, markeredgewidth=3, zorder=10)
+        ax.annotate("Robot", (0, 0), textcoords="offset points", xytext=(8, -12),
+                    fontsize=9, color="red")
+        ax.set_xlabel("X (m)")
+        ax.set_ylabel("Y (m)")
+        ax.set_title("Solved Tag Positions in World Frame (XY top-down)")
+        ax.set_aspect("equal")
+        ax.grid(True, alpha=0.3)
+        fname = f"{output_prefix}_world_xy.png"
+        fig.savefig(fname, dpi=150, bbox_inches="tight")
+        print(f"Saved: {fname}")
+        plt.close(fig)
 
 
 def write_markdown_report(
@@ -432,8 +481,10 @@ def write_markdown_report(
 
     # Embedded plot references
     lines.append("## Plots\n")
-    lines.append(f"![XY Top-Down]({plot_prefix}_xy.png)\n")
-    lines.append(f"![XZ Side View]({plot_prefix}_xz.png)\n")
+    lines.append(f"![World 3D Tag Positions]({plot_prefix}_3d_world.png)\n")
+    lines.append(f"![World XY Tag Positions]({plot_prefix}_world_xy.png)\n")
+    lines.append(f"![XY Top-Down Robot Frame]({plot_prefix}_xy.png)\n")
+    lines.append(f"![XZ Side View Robot Frame]({plot_prefix}_xz.png)\n")
     lines.append(f"![Distance vs Frame]({plot_prefix}_distance.png)\n")
 
     with open(output_path, "w") as f:
@@ -459,6 +510,15 @@ def main(args=None):
     plot_prefix = prefix + "_diag"
     report_path = prefix + "_accuracy.md"
 
+    # Load solved tag world positions if present
+    tag_world_positions = None
+    if "tag_world_positions" in config:
+        tag_world_positions = {
+            int(tid): np.array(pos, dtype=np.float64)
+            for tid, pos in config["tag_world_positions"].items()
+        }
+        print(f"Loaded {len(tag_world_positions)} solved tag world positions")
+
     print("Loaded extrinsics:")
     for cam_id, cam in cameras.items():
         print(f"  {cam_id}: offset={cam['offset'].tolist()}")
@@ -467,7 +527,10 @@ def main(args=None):
     tag_stats, disagreements = compute_statistics(observations)
 
     if not parsed_args.no_plot:
-        plot_tag_positions(tag_stats, output_prefix=plot_prefix)
+        plot_tag_positions(
+            tag_stats, output_prefix=plot_prefix,
+            tag_world_positions=tag_world_positions,
+        )
 
     write_markdown_report(
         cameras, tag_stats, disagreements, observations, report_path, plot_prefix

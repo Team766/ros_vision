@@ -532,7 +532,7 @@ def print_results(
 
 
 def write_diagnostic_config(
-    config, torch_params, output_path="diagnose_config.yaml"
+    config, torch_params, tag_world_positions, tag_ids, output_path="diagnose_config.yaml"
 ):
     """
     Write a YAML config file for diagnose_extrinsics.py using the solved parameters.
@@ -540,6 +540,8 @@ def write_diagnostic_config(
     Args:
         config: Original solver config dict (for frameset_dir and intrinsics paths).
         torch_params: Optimized camera parameter tensors.
+        tag_world_positions: (T, 3) tensor of solved tag world positions.
+        tag_ids: List of tag IDs corresponding to rows in tag_world_positions.
         output_path: Path to write the diagnostic YAML.
     """
     diag = {
@@ -562,6 +564,11 @@ def write_diagnostic_config(
             "rotation": rotation_list,
             "offset": offset_list,
         }
+
+    tag_pos_np = tag_world_positions.detach().cpu().numpy()
+    diag["tag_world_positions"] = {
+        int(tid): tag_pos_np[i].tolist() for i, tid in enumerate(tag_ids)
+    }
 
     with open(output_path, "w") as f:
         yaml.dump(diag, f, default_flow_style=None, sort_keys=False)
@@ -601,12 +608,14 @@ def main(args=None):
         lr_gamma=config.get("lr_gamma", 0.5),
     )
 
-    torch_params = results[0]
+    torch_params, _, tag_world_positions, _, _, tag_ids = results
     output_path = parsed_args.output
     if output_path is None:
         cam_ids = sorted(torch_params.keys())
         output_path = "_".join(cam_ids) + "_diagnostic_config.yaml"
-    write_diagnostic_config(config, torch_params, output_path=output_path)
+    write_diagnostic_config(
+        config, torch_params, tag_world_positions, tag_ids, output_path=output_path
+    )
 
 
 if __name__ == "__main__":
