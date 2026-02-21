@@ -193,6 +193,53 @@ def compute_statistics(observations):
     else:
         print("\n  No tags seen by multiple cameras in same frame.")
 
+    # Per-tag per-camera distance statistics
+    print("\n" + "=" * 70)
+    print("PER-TAG PER-CAMERA DISTANCE STATISTICS")
+    print("=" * 70)
+    print("(distance from robot center should be constant across frames)")
+
+    by_tag_cam = defaultdict(list)
+    for obs in observations:
+        by_tag_cam[(obs["tag_id"], obs["cam_id"])].append(obs)
+
+    all_distance_stds = []
+    all_distance_ranges = []
+
+    for (tag_id, cam_id) in sorted(by_tag_cam.keys()):
+        obs_list = by_tag_cam[(tag_id, cam_id)]
+        positions = np.array([o["pos_robot"] for o in obs_list])
+        distances = np.linalg.norm(positions, axis=1)
+
+        d_mean = distances.mean()
+        d_std = distances.std()
+        d_min = distances.min()
+        d_max = distances.max()
+        d_range = d_max - d_min
+
+        all_distance_stds.append(d_std)
+        all_distance_ranges.append(d_range)
+
+        print(f"\n  Tag {tag_id}, Camera {cam_id} ({len(obs_list)} observations):")
+        print(f"    Distance mean:  {d_mean * 100:.2f} cm")
+        print(f"    Distance std:   {d_std * 100:.2f} cm")
+        print(f"    Distance range: {d_range * 100:.2f} cm")
+        print(f"    Distance min:   {d_min * 100:.2f} cm")
+        print(f"    Distance max:   {d_max * 100:.2f} cm")
+
+    all_distance_stds = np.array(all_distance_stds)
+    all_distance_ranges = np.array(all_distance_ranges)
+
+    print("\n" + "-" * 50)
+    print("AGGREGATE DISTANCE STATISTICS (across all tag/camera pairs)")
+    print("-" * 50)
+    print(f"  Std  — mean: {all_distance_stds.mean() * 100:.2f} cm, "
+          f"max: {all_distance_stds.max() * 100:.2f} cm, "
+          f"min: {all_distance_stds.min() * 100:.2f} cm")
+    print(f"  Range — mean: {all_distance_ranges.mean() * 100:.2f} cm, "
+          f"max: {all_distance_ranges.max() * 100:.2f} cm, "
+          f"min: {all_distance_ranges.min() * 100:.2f} cm")
+
     return tag_stats, disagreements
 
 
@@ -289,18 +336,128 @@ def plot_tag_positions(tag_stats, output_prefix="extrinsics_diag"):
     print(f"Saved per-tag XY plots for {len(tag_stats)} tags")
 
 
+def write_markdown_report(
+    cameras, tag_stats, disagreements, observations, output_path, plot_prefix
+):
+    """
+    Write a markdown report with formatted tables summarizing calibration accuracy.
+    """
+    from collections import defaultdict
+
+    lines = []
+    lines.append("# Extrinsic Calibration Accuracy Report\n")
+
+    # Camera extrinsics summary
+    lines.append("## Camera Extrinsics\n")
+    lines.append("| Camera | Offset X (m) | Offset Y (m) | Offset Z (m) |")
+    lines.append("|--------|-------------|-------------|-------------|")
+    for cam_id in sorted(cameras.keys()):
+        o = cameras[cam_id]["offset"]
+        lines.append(f"| {cam_id} | {o[0]:.4f} | {o[1]:.4f} | {o[2]:.4f} |")
+    lines.append("")
+
+    # Per-tag position statistics
+    lines.append("## Per-Tag Position Statistics (robot frame)\n")
+    lines.append("| Tag | Obs | Mean X (m) | Mean Y (m) | Mean Z (m) | "
+                 "Std X (cm) | Std Y (cm) | Std Z (cm) | Dist Mean (m) | Dist Std (cm) |")
+    lines.append("|-----|-----|-----------|-----------|-----------|"
+                 "-----------|-----------|-----------|--------------|--------------|")
+    for tag_id in sorted(tag_stats.keys()):
+        s = tag_stats[tag_id]
+        mp = s["mean_pos"]
+        sp = s["std_pos"]
+        lines.append(
+            f"| {tag_id} | {s['n_obs']} | {mp[0]:.4f} | {mp[1]:.4f} | {mp[2]:.4f} | "
+            f"{sp[0]*100:.2f} | {sp[1]*100:.2f} | {sp[2]*100:.2f} | "
+            f"{s['mean_dist']:.4f} | {s['std_dist']*100:.2f} |"
+        )
+    lines.append("")
+
+    # Per-tag per-camera distance statistics
+    lines.append("## Per-Tag Per-Camera Distance Statistics\n")
+    lines.append("Distance from robot center should be constant across frames "
+                 "if extrinsics are correct.\n")
+    lines.append("| Tag | Camera | Obs | Mean (cm) | Std (cm) | Range (cm) | Min (cm) | Max (cm) |")
+    lines.append("|-----|--------|-----|----------|---------|-----------|---------|---------|")
+
+    by_tag_cam = defaultdict(list)
+    for obs in observations:
+        by_tag_cam[(obs["tag_id"], obs["cam_id"])].append(obs)
+
+    all_stds = []
+    all_ranges = []
+    for (tag_id, cam_id) in sorted(by_tag_cam.keys()):
+        obs_list = by_tag_cam[(tag_id, cam_id)]
+        positions = np.array([o["pos_robot"] for o in obs_list])
+        distances = np.linalg.norm(positions, axis=1)
+        d_mean = distances.mean()
+        d_std = distances.std()
+        d_min = distances.min()
+        d_max = distances.max()
+        d_range = d_max - d_min
+        all_stds.append(d_std)
+        all_ranges.append(d_range)
+        lines.append(
+            f"| {tag_id} | {cam_id} | {len(obs_list)} | "
+            f"{d_mean*100:.2f} | {d_std*100:.2f} | {d_range*100:.2f} | "
+            f"{d_min*100:.2f} | {d_max*100:.2f} |"
+        )
+    lines.append("")
+
+    # Aggregate distance statistics
+    all_stds = np.array(all_stds)
+    all_ranges = np.array(all_ranges)
+    lines.append("## Aggregate Distance Statistics\n")
+    lines.append("| Metric | Mean (cm) | Max (cm) | Min (cm) |")
+    lines.append("|--------|----------|---------|---------|")
+    lines.append(f"| Std | {all_stds.mean()*100:.2f} | {all_stds.max()*100:.2f} | "
+                 f"{all_stds.min()*100:.2f} |")
+    lines.append(f"| Range | {all_ranges.mean()*100:.2f} | {all_ranges.max()*100:.2f} | "
+                 f"{all_ranges.min()*100:.2f} |")
+    lines.append("")
+
+    # Inter-camera disagreement
+    if disagreements:
+        diffs = np.array([d["diff_m"] for d in disagreements])
+        lines.append("## Inter-Camera Disagreement\n")
+        lines.append(f"Tag pairs seen by both cameras: {len(disagreements)}\n")
+        lines.append("| Metric | Value (cm) |")
+        lines.append("|--------|-----------|")
+        lines.append(f"| Mean | {diffs.mean()*100:.2f} |")
+        lines.append(f"| Median | {np.median(diffs)*100:.2f} |")
+        lines.append(f"| Std | {diffs.std()*100:.2f} |")
+        lines.append(f"| Max | {diffs.max()*100:.2f} |")
+        lines.append(f"| Min | {diffs.min()*100:.2f} |")
+        lines.append("")
+
+    # Embedded plot references
+    lines.append("## Plots\n")
+    lines.append(f"![XY Top-Down]({plot_prefix}_xy.png)\n")
+    lines.append(f"![XZ Side View]({plot_prefix}_xz.png)\n")
+    lines.append(f"![Distance vs Frame]({plot_prefix}_distance.png)\n")
+
+    with open(output_path, "w") as f:
+        f.write("\n".join(lines))
+
+    print(f"Markdown report written to: {output_path}")
+
+
 def main(args=None):
     parser = argparse.ArgumentParser(
         description="Diagnose extrinsic calibration quality from frameset data."
     )
     parser.add_argument("config", type=str, help="Path to diagnostic config YAML file")
     parser.add_argument("--no-plot", action="store_true", help="Skip generating plots")
-    parser.add_argument("--output-prefix", type=str, default="extrinsics_diag",
-                        help="Prefix for output plot files")
     parsed_args = parser.parse_args(args)
 
     config = read_yaml_file(parsed_args.config)
     cameras = load_camera_extrinsics(config)
+
+    # Auto-generate output prefix from camera IDs
+    cam_ids = sorted(cameras.keys())
+    prefix = "_".join(cam_ids)
+    plot_prefix = prefix + "_diag"
+    report_path = prefix + "_accuracy.md"
 
     print("Loaded extrinsics:")
     for cam_id, cam in cameras.items():
@@ -310,7 +467,11 @@ def main(args=None):
     tag_stats, disagreements = compute_statistics(observations)
 
     if not parsed_args.no_plot:
-        plot_tag_positions(tag_stats, output_prefix=parsed_args.output_prefix)
+        plot_tag_positions(tag_stats, output_prefix=plot_prefix)
+
+    write_markdown_report(
+        cameras, tag_stats, disagreements, observations, report_path, plot_prefix
+    )
 
 
 if __name__ == "__main__":

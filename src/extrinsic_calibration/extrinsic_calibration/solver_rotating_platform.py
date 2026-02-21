@@ -325,7 +325,13 @@ def compute_loss(
 
 
 def run_optimizer(
-    frameset_data, camera_params, device, num_iterations=2000, learning_rate=1e-2
+    frameset_data,
+    camera_params,
+    device,
+    num_iterations=2000,
+    learning_rate=1e-2,
+    lr_step_size=None,
+    lr_gamma=0.5,
 ):
     """
     Run joint optimization of camera extrinsics, turntable angles, tag positions,
@@ -386,6 +392,14 @@ def run_optimizer(
 
     optimizer = optim.Adam(opt_params, lr=learning_rate)
 
+    # Learning rate scheduling
+    scheduler = None
+    if lr_step_size is not None:
+        scheduler = optim.lr_scheduler.StepLR(
+            optimizer, step_size=lr_step_size, gamma=lr_gamma
+        )
+        print(f"LR schedule: StepLR(step_size={lr_step_size}, gamma={lr_gamma})")
+
     # Initial loss
     multiplier = 100.0
     loss = compute_loss(
@@ -430,7 +444,12 @@ def run_optimizer(
         )
         loss.backward()
         optimizer.step()
-        progress_bar.set_postfix(loss=f"{loss.item() * multiplier:.6f}")
+        if scheduler is not None:
+            scheduler.step()
+        current_lr = optimizer.param_groups[0]["lr"]
+        progress_bar.set_postfix(
+            loss=f"{loss.item() * multiplier:.6f}", lr=f"{current_lr:.1e}"
+        )
 
     # Build full frame angles for output
     with torch.no_grad():
@@ -555,6 +574,10 @@ def main(args=None):
         description="Solve for camera extrinsics using a rotating platform with AprilTags."
     )
     parser.add_argument("config", type=str, help="Path to configuration YAML file")
+    parser.add_argument(
+        "-o", "--output", type=str, default=None,
+        help="Output path for diagnostic config YAML (default: auto-generated from camera IDs)",
+    )
     parsed_args = parser.parse_args(args)
 
     config = read_yaml_file(parsed_args.config)
@@ -574,10 +597,16 @@ def main(args=None):
         device,
         num_iterations=config["num_iterations"],
         learning_rate=config["learning_rate"],
+        lr_step_size=config.get("lr_step_size"),
+        lr_gamma=config.get("lr_gamma", 0.5),
     )
 
     torch_params = results[0]
-    write_diagnostic_config(config, torch_params)
+    output_path = parsed_args.output
+    if output_path is None:
+        cam_ids = sorted(torch_params.keys())
+        output_path = "_".join(cam_ids) + "_diagnostic_config.yaml"
+    write_diagnostic_config(config, torch_params, output_path=output_path)
 
 
 if __name__ == "__main__":
