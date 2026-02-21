@@ -152,8 +152,8 @@ void ApriltagsDetector::setup_apriltags() {
   get_camera_calibration_data(&cam, &dist);
   get_extrinsic_params();
 
-  tag_sender_ = std::make_shared<AprilTagDataSender>(camera_serial_, table_name_,
-                                                    table_address_);
+  tag_sender_ = std::make_shared<AprilTagDataSender>(camera_serial_, table_address_,
+                                                    table_name_);
 
   // Load camera configuration to get frame dimensions
   auto camera_config =
@@ -500,7 +500,6 @@ void ApriltagsDetector::imageCallback(
   auto nt_start = std::chrono::high_resolution_clock::now();
   tag_sender_->sendValue(networktables_pose_data);
   tag_sender_->sendProtobuf(tag_detection_proto_list);
-  tag_sender_->flush();
   auto nt_end = std::chrono::high_resolution_clock::now();
 
   auto pub_pose_start = std::chrono::high_resolution_clock::now();
