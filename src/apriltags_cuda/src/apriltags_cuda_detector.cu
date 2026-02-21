@@ -8,7 +8,8 @@ ApriltagsDetector::ApriltagsDetector()
     : Node("apriltags_detector"),
       tag_family_(nullptr),
       tag_detector_(nullptr),
-      detector_(nullptr) {
+      detector_(nullptr),
+      proto_tag_sender_(nullptr) {
   setup_topics();
   get_network_tables_params();
   setup_apriltags();
@@ -23,7 +24,8 @@ ApriltagsDetector::ApriltagsDetector(bool bypass_init)
     : Node("apriltags_detector"),
       tag_family_(nullptr),
       tag_detector_(nullptr),
-      detector_(nullptr) {
+      detector_(nullptr),
+      proto_tag_sender_(nullptr) {
   if (!bypass_init) {
     setup_topics();
     get_network_tables_params();
@@ -150,8 +152,14 @@ void ApriltagsDetector::setup_apriltags() {
   get_camera_calibration_data(&cam, &dist);
   get_extrinsic_params();
 
-  tag_sender_ = std::make_shared<DoubleArraySender>(
-      camera_serial_, table_address_, table_name_);
+  inst_ = nt::NetworkTableInstance::GetDefault();
+  inst_.SetServer(table_address_.c_str());
+  inst_.StartClient4(table_address_.c_str());
+  nt_table_ = inst_.GetTable(table_name_);
+
+  tag_sender_ = std::make_shared<DoubleArraySender>(camera_serial_, nt_table_);
+  proto_tag_sender_ =
+      std::make_shared<AprilTagProtobufSender>(camera_serial_, nt_table_);
 
   // Load camera configuration to get frame dimensions
   auto camera_config =
@@ -497,7 +505,8 @@ void ApriltagsDetector::imageCallback(
 
   auto nt_start = std::chrono::high_resolution_clock::now();
   tag_sender_->sendValue(networktables_pose_data);
-  tag_sender_->sendProtobuf(tag_detection_proto_list);
+  proto_tag_sender_->sendProtobuf(tag_detection_proto_list);
+  inst_.Flush();
   auto nt_end = std::chrono::high_resolution_clock::now();
 
   auto pub_pose_start = std::chrono::high_resolution_clock::now();

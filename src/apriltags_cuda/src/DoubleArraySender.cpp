@@ -7,33 +7,17 @@ the Orin. Later, this should be changed to a new table, such as /Orin or
 */
 
 DoubleArraySender::DoubleArraySender(const std::string& key,
-                                     const std::string& table_address,
-                                     const std::string& table_name) {
-  inst_ = nt::NetworkTableInstance::GetDefault();
-  inst_.SetServer(table_address.c_str());
-  inst_.StartClient4(table_address.c_str());
-  auto table = inst_.GetTable(table_name);
-  nt::DoubleArrayTopic topic = table->GetDoubleArrayTopic(key);
+                                     std::shared_ptr<nt::NetworkTable> table)
+    : table_(table) {
+  nt::DoubleArrayTopic topic = table_->GetDoubleArrayTopic(key);
   publisher_ = topic.Publish();
-
-  nt::ProtobufTopic<com::team766::vision::ApriltagListProto> protobuf_topic =
-      table->GetProtobufTopic<com::team766::vision::ApriltagListProto>(key +
-                                                                 "_protobuf");
-  protobuf_publisher_ = protobuf_topic.Publish();
 }
 
 void DoubleArraySender::sendValue(std::vector<double> value) {
   publisher_.Set(value);
-  inst_.Flush();
 }
 
 void DoubleArraySender::setDefaultValue(std::vector<double> value) {
   publisher_.SetDefault(value);
-  inst_.Flush();
-}
-
-void DoubleArraySender::sendProtobuf(
-  const com::team766::vision::ApriltagListProto& value) {
-  protobuf_publisher_.Set(value);
   inst_.Flush();
 }
