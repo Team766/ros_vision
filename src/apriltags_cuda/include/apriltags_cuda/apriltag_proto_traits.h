@@ -12,14 +12,14 @@ namespace wpi {
 
 template <>
 struct Protobuf<com::team766::vision::ApriltagProto> {
-  using Message = google::protobuf::Message;
+  using Message = com::team766::vision::ApriltagProto;
   static std::string_view GetTypeName() {
     return "com.team766.vision.ApriltagProto";
   }
   static google::protobuf::Descriptor const* GetDescriptor() {
     return com::team766::vision::ApriltagProto::descriptor();
   }
-  static com::team766::vision::ApriltagProto New(google::protobuf::Arena* arena) {
+  static Message New(google::protobuf::Arena* arena) {
     if (arena) {
       return *google::protobuf::Arena::CreateMessage<com::team766::vision::ApriltagProto>(arena);
     }
@@ -37,14 +37,14 @@ struct Protobuf<com::team766::vision::ApriltagProto> {
 
 template <>
 struct Protobuf<com::team766::vision::ApriltagListProto> {
-  using Message = google::protobuf::Message;
+  using Message = com::team766::vision::ApriltagListProto;
   static std::string_view GetTypeName() {
     return "com.team766.vision.ApriltagListProto";
   }
   static google::protobuf::Descriptor const* GetDescriptor() {
     return com::team766::vision::ApriltagListProto::descriptor();
   }
-  static com::team766::vision::ApriltagListProto New(google::protobuf::Arena* arena) {
+  static Message New(google::protobuf::Arena* arena) {
     if (arena) {
       return *google::protobuf::Arena::CreateMessage<com::team766::vision::ApriltagListProto>(arena);
     }
