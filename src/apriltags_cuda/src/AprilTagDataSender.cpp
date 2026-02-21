@@ -20,7 +20,7 @@ AprilTagDataSender::AprilTagDataSender(const std::string& key,
 
   // Protobuf Topic
   nt::ProtobufTopic<com::team766::vision::ApriltagListProto> pb_topic =
-      table_->GetProtobufTopic<com::team766::vision::ApriltagListProto>(key + "_protobuf");
+      table->GetProtobufTopic<com::team766::vision::ApriltagListProto>(key + "_protobuf");
   protobuf_publisher_ = pb_topic.Publish();
 }
 

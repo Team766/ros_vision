@@ -5,16 +5,15 @@
 #include <vector>
 #include <memory>
 
+#include "networktables/DoubleArrayTopic.h"
 #include "networktables/NetworkTable.h"
 #include "networktables/NetworkTableInstance.h"
-#include "networktables/DoubleArrayTopic.h"
 #include "networktables/ProtobufTopic.h"
 #include "apriltags_cuda/apriltag_proto_traits.h"
 
 class AprilTagDataSender {
  private:
   nt::NetworkTableInstance inst_;
-  std::shared_ptr<nt::NetworkTable> table_;
   nt::DoubleArrayPublisher publisher_;
   nt::ProtobufPublisher<com::team766::vision::ApriltagListProto> protobuf_publisher_;
 
