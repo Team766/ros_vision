@@ -12,6 +12,14 @@
 #include "networktables/ProtobufTopic.h"
 
 class DoubleArraySender {
+ private:
+  nt::NetworkTableInstance inst_;
+  nt::DoubleArrayPublisher publisher_;
+  nt::ProtobufPublisher<com::team766::vision::ApriltagListProto> protobuf_publisher_;
+
+  std::string table_name_;
+  std::string table_address_;
+
  public:
   // Constructor declaration
   DoubleArraySender(const std::string& key, const std::string& table_address,
@@ -23,12 +31,6 @@ class DoubleArraySender {
   void sendProtobuf(const com::team766::vision::ApriltagListProto& value);
 
  private:
-  nt::NetworkTableInstance inst_;
-  nt::DoubleArrayPublisher publisher_;
-  nt::ProtobufPublisher<com::team766::vision::ApriltagListProto> protobuf_publisher_;
-
-  std::string table_name_;
-  std::string table_address_;
 };
 
 #endif
