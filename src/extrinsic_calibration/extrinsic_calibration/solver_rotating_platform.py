@@ -27,6 +27,7 @@ import json
 import numpy as np
 import torch
 import torch.optim as optim
+import yaml
 from tqdm import trange
 
 # Try to import from local utils, fallback to standalone utils
@@ -305,14 +306,20 @@ def compute_loss(
     diffs = world_predicted - target_world
     data_loss = torch.mean(torch.sum(diffs**2, dim=1))
 
-    # Step 6: Regularization — anchor camera translations near initial values.
-    # This breaks the translational gauge freedom (shifting all t_cam and
-    # tag positions together produces the same data loss).
-    reg_weight = 1.0
-    reg_loss = torch.tensor(0.0, dtype=torch.float32, device=device)
-    for cam_id in torch_params:
-        t_diff = torch_params[cam_id]["translation"] - initial_translations[cam_id]
-        reg_loss = reg_loss + torch.sum(t_diff**2)
+    # Step 6: Regularization — penalize only the MEAN translation shift.
+    # The gauge freedom is a global translation (shift all t_cam by the same
+    # vector d, shift all tag positions to compensate). We break this 3-DOF
+    # ambiguity by penalizing the mean shift, while allowing individual cameras
+    # to adjust freely to find the true center of rotation.
+    reg_weight = 10.0
+    cam_ids = list(torch_params.keys())
+    mean_shift = torch.zeros(3, dtype=torch.float32, device=device)
+    for cam_id in cam_ids:
+        mean_shift = mean_shift + (
+            torch_params[cam_id]["translation"] - initial_translations[cam_id]
+        )
+    mean_shift = mean_shift / len(cam_ids)
+    reg_loss = torch.sum(mean_shift**2)
 
     return data_loss + reg_weight * reg_loss
 
@@ -505,6 +512,44 @@ def print_results(
     print(f"  [{robot_np[0]:.4f}, {robot_np[1]:.4f}, {robot_np[2]:.4f}]")
 
 
+def write_diagnostic_config(
+    config, torch_params, output_path="diagnose_config.yaml"
+):
+    """
+    Write a YAML config file for diagnose_extrinsics.py using the solved parameters.
+
+    Args:
+        config: Original solver config dict (for frameset_dir and intrinsics paths).
+        torch_params: Optimized camera parameter tensors.
+        output_path: Path to write the diagnostic YAML.
+    """
+    diag = {
+        "frameset_dir": config["frameset_dir"],
+        "cameras": {},
+    }
+
+    for cam_id, rec in torch_params.items():
+        angles = rec["rotations"].detach().cpu().numpy()
+        translation = rec["translation"].detach().cpu().numpy()
+        R_cam = (
+            compose_rotations_xyz_torch(angles[0], angles[1], angles[2])
+            @ camera_to_robot_torch()
+        )
+        rotation_list = R_cam.detach().cpu().numpy().tolist()
+        offset_list = translation.tolist()
+
+        diag["cameras"][cam_id] = {
+            "intrinsics_filename": config["cameras"][cam_id]["intrinsics_filename"],
+            "rotation": rotation_list,
+            "offset": offset_list,
+        }
+
+    with open(output_path, "w") as f:
+        yaml.dump(diag, f, default_flow_style=None, sort_keys=False)
+
+    print(f"\nDiagnostic config written to: {output_path}")
+
+
 def main(args=None):
     parser = argparse.ArgumentParser(
         description="Solve for camera extrinsics using a rotating platform with AprilTags."
@@ -523,13 +568,16 @@ def main(args=None):
         print(f"    Distortion Coefficients: {rec['distortion_coeffs']}")
 
     frameset_data = generate_frameset_all_observations(config, camera_info)
-    run_optimizer(
+    results = run_optimizer(
         frameset_data,
         camera_params,
         device,
         num_iterations=config["num_iterations"],
         learning_rate=config["learning_rate"],
     )
+
+    torch_params = results[0]
+    write_diagnostic_config(config, torch_params)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-frameset_dir: "/home/cpadwick/data/feb15_rotating_platform/calibration_data_2026_02_15_17_27_16"
+frameset_dir: "/home/cpadwick/data/feb20_rotating_platform/calibration_data_2026_02_20_18_50_50"
 num_iterations: 15000 
 learning_rate: 0.01
 cameras:
