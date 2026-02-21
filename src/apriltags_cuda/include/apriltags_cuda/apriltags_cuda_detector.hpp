@@ -20,8 +20,7 @@
 #include <vector>
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
-#include "apriltags_cuda/AprilTagProtobufSender.h"
-#include "apriltags_cuda/DoubleArraySender.h"
+#include "apriltags_cuda/AprilTagDataSender.h"
 #include "apriltags_cuda/apriltag_gpu.h"
 #include "apriltags_cuda/apriltag_utils.h"
 #include "apriltags_cuda/msg/tag_detection.hpp"
@@ -204,10 +203,7 @@ class ApriltagsDetector : public rclcpp::Node {
   int priority_;
 
   // Network tables
-  nt::NetworkTableInstance inst_;
-  std::shared_ptr<nt::NetworkTable> nt_table_;
-  std::shared_ptr<DoubleArraySender> tag_sender_;
-  std::shared_ptr<AprilTagProtobufSender> proto_tag_sender_;
+  std::shared_ptr<AprilTagDataSender> tag_sender_;
 
   // AprilTag detection
   apriltag_family_t *tag_family_;

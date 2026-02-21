@@ -1,0 +1,32 @@
+#ifndef APRILTAG_DATA_SENDER_H
+#define APRILTAG_DATA_SENDER_H
+
+#include <string>
+#include <vector>
+#include <memory>
+
+#include "networktables/NetworkTable.h"
+#include "networktables/NetworkTableInstance.h"
+#include "networktables/DoubleArrayTopic.h"
+#include "networktables/ProtobufTopic.h"
+#include "apriltags_cuda/apriltag_proto_traits.h"
+
+class AprilTagDataSender {
+ public:
+  AprilTagDataSender(const std::string& key,
+                     const std::string& table_name,
+                     const std::string& table_address);
+
+  void sendValue(const std::vector<double>& value);
+  void sendProtobuf(const com::team766::vision::ApriltagListProto& value);
+  void setDefaultValue(const std::vector<double>& value);
+  void flush();
+
+ private:
+  nt::NetworkTableInstance inst_;
+  std::shared_ptr<nt::NetworkTable> table_;
+  nt::DoubleArrayPublisher publisher_;
+  nt::ProtobufPublisher<com::team766::vision::ApriltagListProto> protobuf_publisher_;
+};
+
+#endif // APRILTAG_DATA_SENDER_H

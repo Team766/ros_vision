@@ -82,9 +82,8 @@ set(CUDA_LIB_SOURCES
     src/threshold.cu
     src/apriltag_utils.cu
     src/apriltags_cuda_detector.cu
-    src/DoubleArraySender.cpp
+    src/AprilTagDataSender.cpp
     src/NetworkTablesUtil.cpp
-    src/AprilTagProtobufSender.cpp
     ${PROTO_SRCS})
 
 # Add a library with the above source files
