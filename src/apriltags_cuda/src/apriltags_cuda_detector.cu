@@ -411,7 +411,7 @@ void ApriltagsDetector::imageCallback(
   std::vector<double> networktables_pose_data = {};
   apriltags_cuda::msg::TagDetectionArray tag_detection_array_msg;
   apriltags_cuda::msg::TagDetectionArray tag_detection_camera_array_msg;
-  apriltags_cuda::ApriltagListProto tag_detection_proto_list;
+  com::team766::vision::ApriltagListProto tag_detection_proto_list;
   tag_detection_array_msg.detections.clear();
   tag_detection_camera_array_msg.detections.clear();
 
