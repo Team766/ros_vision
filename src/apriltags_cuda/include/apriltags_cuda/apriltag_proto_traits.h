@@ -10,6 +10,11 @@
 
 namespace wpi {
 
+// NOTE: this code handles serialization and deserialization of protobufs on the
+// wire to the data structure we want to use in our code.
+// Because we don't have a general data structure containing the different fields
+// we write and send for detected AprilTags (perhaps DetectedData could be useful?),
+// we're just using the protobuf itself as that format.
 template <>
 struct Protobuf<com::team766::vision::ApriltagProto> {
   using Message = google::protobuf::Message;
