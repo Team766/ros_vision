@@ -74,7 +74,7 @@ sudo rm -f /etc/apt/sources.list.d/cuda*.list 2>/dev/null || true
 
 sudo apt update -y
 sudo apt install -y wget build-essential cmake python3-dev python3-venv python3-numpy libprotobuf-dev protobuf-compiler
-sudo apt install -y libgoogle-glog-dev libgtest-dev libssh-dev libxrandr-dev libxinerama-dev libstdc++-12-dev
+sudo apt install -y libgoogle-glog-dev libgtest-dev libssh-dev libxrandr-dev libxinerama-dev libstdc++-12-dev libspdlog-dev
 sudo apt install -y golang
 
 # Install ROS sources if needed
