@@ -22,6 +22,9 @@ using json = nlohmann::json;
 constexpr float CONF_THRESHOLD = 0.25f;
 constexpr float IOU_THRESHOLD = 0.45f;
 
+void preprocess_image(const cv::Mat& img, float* output,
+                      int input_width, int input_height, int input_channels);
+
 class GamePieceDetector : public rclcpp::Node {
 public:
 GamePieceDetector()
@@ -86,18 +89,18 @@ GamePieceDetector()
     std::cout << "Loaded ModelInference Engine in " << load_time << " ms" << std::endl;
     
     input_channels_ = model.getInputChannels();
-    int input_height = model.getInputHeight();
-    int input_width = model.getInputWidth();
+    input_height_ = model.getInputHeight();
+    input_width_ = model.getInputWidth();
     num_classes_ = model.getNumClasses();
     num_predictions_ = model.getNumPredictions();
 
-    input_channels_ = config_data.value("input_channels", 3);
+    int config_input_channels = config_data.value("input_channels", 3);
 
-    input_size_ = input_channels_ * input_width * input_height;
+    input_size_ = input_channels_ * input_width_ * input_height_;
     output_size_ = model.getOutputSize() / sizeof(float);
 
-    if (input_channels != config_input_channels) {
-      std::cerr << "Warning: Engine input channels (" << input_channels
+    if (input_channels_ != config_input_channels) {
+      std::cerr << "Warning: Engine input channels (" << input_channels_
               << ") differs from config (" << config_input_channels << ")" << std::endl;
     }
 
@@ -271,28 +274,26 @@ private:
   void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
     cv::Mat bgr_img = cv_bridge::toCvCopy(msg, "bgr8")->image;
 
-    std::vector<float> input_buffer(input_size);
-    std::vector<float> output_buffer(output_size);
+    std::vector<float> input_buffer(input_size_);
+    std::vector<float> output_buffer(output_size_);
 
     int orig_width = bgr_img.cols;
     int orig_height = bgr_img.rows;
 
-    preprocess_image(bgr_img, input_buffer.data(), input_width, input_height, input_channels);
+    preprocess_image(bgr_img, input_buffer.data(), input_width_, input_height_, input_channels_);
 
+    // TODO: Run inference with model and populate output_buffer
 
     auto detections = parse_yolov11_output(
-      output_buffer.data(), num_predictions, num_classes, class_names,
+      output_buffer.data(), num_predictions_, num_classes_, class_names_,
       CONF_THRESHOLD, IOU_THRESHOLD);
 
-    auto scaled_detections = scale_detections(detections, input_width, input_height,
+    auto scaled_detections = scale_detections(detections, input_width_, input_height_,
                                                orig_width, orig_height);
 
     std::cout << "  Size: " << orig_width << "x" << orig_height
-            << ", Inference: " << std::fixed << std::setprecision(2) << infer_time << " ms"
             << ", Detections: " << scaled_detections.size() << std::endl;
     // TODO: Publish the inference and detections out
-    
-    (void)bgr_img;  // Suppress unused warning until inference is implemented
   }
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscriber_;
@@ -319,8 +320,10 @@ private:
   size_t output_size_;
 
   int input_channels_;
+  int input_width_;
+  int input_height_;
 
-  std:vector<std::string> class_names_;
+  std::vector<std::string> class_names_;
 
   int num_predictions_;
 
