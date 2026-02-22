@@ -1,7 +1,15 @@
 {
     "camera_mounted_positions": {
-        "00": {
-            "location": "right_front",
+        "HBVCAM": {
+            "location": "center_front",
+            "format": "MJPG",
+            "height": 1080,
+            "width": 1920,
+            "frame_rate": 30,
+            "api_preference": "V4L2"
+        },
+	"HBVCAM01": {
+            "location": "left_front",
             "format": "MJPG",
             "height": 1080,
             "width": 1920,
