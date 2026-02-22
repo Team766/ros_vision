@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import logging
 from datetime import datetime
 
@@ -230,6 +231,9 @@ def generate_launch_description():
         camera_count = 0
         for serial_id, camera_idx in cameras_by_serial_id.items():
             cam_location = cameras_by_location[serial_id]
+            # Sanitize identifier for use in ROS node names (alphanumerics and _ only)
+            safe_id = re.sub(r"[^a-zA-Z0-9]", "_", serial_id)
+
             logger.info(
                 f"Setting up nodes for camera {serial_id} at location '{cam_location}'"
             )
@@ -258,7 +262,7 @@ def generate_launch_description():
             camera_node = Node(
                 package="usb_camera",
                 executable="usb_camera_node",
-                name=f"camera_{serial_id}",
+                name=f"camera_{safe_id}",
                 parameters=[
                     {
                         "camera_idx": camera_idx,
@@ -283,7 +287,7 @@ def generate_launch_description():
             apriltags_node = Node(
                 package="apriltags_cuda",
                 executable="apriltags_cuda_node",
-                name=f"apriltags_{serial_id}",
+                name=f"apriltags_{safe_id}",
                 parameters=[
                     {
                         "topic_name": f"cameras/{cam_location}/image_raw",
