@@ -111,50 +111,33 @@ def scan_by_id():
 
 def scan_by_path():
     """
-    Scan /dev/v4l/by-path/ for cameras and return a mapping of path
-    identifiers to video indices.
-
-    The identifier is the by-path symlink name with "-video-index0" stripped.
-    For example:
-        platform-3610000.usb-usb-0:2:1.0-video-index0
-            → "platform-3610000.usb-usb-0:2:1.0"
-        platform-3610000.usb-usb-0:3.1:1.0-video-index0
-            → "platform-3610000.usb-usb-0:3.1:1.0"
-
-    To find the config key for a camera: ls /dev/v4l/by-path/, find the
-    -video-index0 entry, and remove the "-video-index0" suffix.
+    Scan /dev/v4l/by-path/ for all video devices and return their video indices.
 
     Returns:
-        dict: Mapping of {path_identifier: video_index}.
+        set: Set of video indices (ints) found via by-path.
     """
     if not os.path.exists(BY_PATH_PATH):
         logger.info(f"{BY_PATH_PATH} does not exist, skipping by-path scan")
-        return {}
+        return set()
 
     logger.debug(f"Scanning directory: {BY_PATH_PATH}")
-    cameras = {}
+    indices = set()
     entries = os.listdir(BY_PATH_PATH)
     logger.info(f"Found {len(entries)} entries in {BY_PATH_PATH}")
 
-    VIDEO_INDEX0_SUFFIX = "-video-index0"
-
     for entry in entries:
-        if not entry.endswith(VIDEO_INDEX0_SUFFIX):
+        if not entry.endswith("-video-index0"):
             continue
-
-        path_id = entry[: -len(VIDEO_INDEX0_SUFFIX)]
 
         video_index = _resolve_video_index(BY_PATH_PATH, entry)
         if video_index is None:
             continue
 
-        cameras[path_id] = video_index
-        logger.info(
-            f"Found camera (by-path): id={path_id}, video_index={video_index}"
-        )
+        indices.add(video_index)
+        logger.info(f"Found device (by-path): {entry} -> video{video_index}")
 
-    logger.info(f"by-path scan found {len(cameras)} camera(s)")
-    return cameras
+    logger.info(f"by-path scan found {len(indices)} device(s)")
+    return indices
 
 
 def scan_for_cameras():
@@ -162,34 +145,39 @@ def scan_for_cameras():
     Scan for cameras using both /dev/v4l/by-id/ and /dev/v4l/by-path/.
 
     Cameras with unique serial numbers are identified by serial (backward
-    compatible). Cameras that share a serial number (only one entry in by-id
-    but multiple physical devices) are identified by their USB port shorthand
-    from by-path.
+    compatible). Cameras that share a serial number (only one by-id entry
+    for multiple physical devices) are discovered via by-path and assigned
+    sequential names like HBVCAM01, HBVCAM02, sorted by video index.
 
     Returns:
         dict: Mapping of {identifier: video_index} where identifier is either
-            a serial number string or a by-path identifier
-            (e.g. "platform-3610000.usb-usb-0:2:1.0").
+            a serial number string (e.g. "cam13") or a generated name
+            (e.g. "HBVCAM01").
     """
     logger.info("Starting camera scan...")
 
     by_id_cameras = scan_by_id()
-    by_path_cameras = scan_by_path()
+    by_path_indices = scan_by_path()
 
     # Start with all by-id cameras
     result = dict(by_id_cameras)
     covered_indices = set(by_id_cameras.values())
 
-    # Add any by-path cameras whose video index isn't already covered by by-id.
-    # These are cameras that share a serial number with another camera, so
-    # by-id only has one entry for them.
-    for port, video_index in by_path_cameras.items():
-        if video_index not in covered_indices:
-            result[port] = video_index
-            covered_indices.add(video_index)
+    # Find cameras visible in by-path but not covered by by-id.
+    # These are cameras that share a serial number with another camera,
+    # so by-id only has one entry for the group.
+    uncovered = sorted(by_path_indices - covered_indices)
+
+    if uncovered:
+        logger.info(
+            f"Found {len(uncovered)} camera(s) via by-path not covered by by-id: "
+            f"video indices {uncovered}"
+        )
+        for i, video_index in enumerate(uncovered, start=1):
+            name = f"HBVCAM{i:02d}"
+            result[name] = video_index
             logger.info(
-                f"Camera at video{video_index} not found in by-id, "
-                f"using USB port identifier: {port}"
+                f"Assigned name '{name}' to camera at video{video_index}"
             )
 
     if not result:
@@ -236,7 +224,7 @@ def get_config_data(cameras_by_serial_id):
 
     Args:
         cameras_by_serial_id (dict): Mapping of camera identifiers (serial numbers
-            or USB port shorthands) to video indices (int).
+            or generated names like "HBVCAM01") to video indices (int).
 
     Returns:
         dict: Mapping of camera identifiers (str) to their camera locations from config.
