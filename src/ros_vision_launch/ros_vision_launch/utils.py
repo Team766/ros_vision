@@ -181,6 +181,14 @@ def _load_usb_port_overrides():
     for cam_id, cam_config in camera_positions.items():
         if isinstance(cam_config, dict) and "usb_port" in cam_config:
             usb_port = cam_config["usb_port"]
+            if usb_port in overrides:
+                error_msg = (
+                    f"FATAL: Duplicate USB port '{usb_port}' in system_config.json: "
+                    f"both '{overrides[usb_port]}' and '{cam_id}' map to the same port"
+                )
+                print(error_msg)
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
             overrides[usb_port] = cam_id
             logger.info(f"USB port override: port {usb_port} -> {cam_id}")
 
