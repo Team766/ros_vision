@@ -227,14 +227,13 @@ def scan_for_cameras():
                 f"USB port override applied: {cam_id} -> video{video_index} (port {usb_port})"
             )
         else:
-            print(
-                f"WARNING: USB port override for '{cam_id}' specifies port '{usb_port}' "
-                f"but no device found. Available ports: {list(port_map.keys())}"
-            )
-            logger.warning(
-                f"USB port override for '{cam_id}' specifies port '{usb_port}' "
+            error_msg = (
+                f"FATAL: USB port override for '{cam_id}' specifies port '{usb_port}' "
                 f"but no device found on that port. Available ports: {list(port_map.keys())}"
             )
+            print(error_msg)
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
     # Second pass: add by-id cameras that weren't already covered by overrides
     for serial, video_index in by_id_cameras.items():
