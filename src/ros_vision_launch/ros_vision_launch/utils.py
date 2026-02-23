@@ -111,17 +111,22 @@ def scan_by_id():
 
 def scan_by_path():
     """
-    Scan /dev/v4l/by-path/ for all video devices and return their video indices.
+    Scan /dev/v4l/by-path/ for all video devices and return their video indices
+    and a mapping of USB port identifiers to video indices.
 
     Returns:
-        set: Set of video indices (ints) found via by-path.
+        tuple: (indices, port_map) where:
+            - indices: Set of video indices (ints) found via by-path.
+            - port_map: Dict mapping USB port strings (e.g. "0:2", "0:3.1")
+              to video indices.
     """
     if not os.path.exists(BY_PATH_PATH):
         logger.info(f"{BY_PATH_PATH} does not exist, skipping by-path scan")
-        return set()
+        return set(), {}
 
     logger.debug(f"Scanning directory: {BY_PATH_PATH}")
     indices = set()
+    port_map = {}
     entries = os.listdir(BY_PATH_PATH)
     logger.info(f"Found {len(entries)} entries in {BY_PATH_PATH}")
 
@@ -134,10 +139,52 @@ def scan_by_path():
             continue
 
         indices.add(video_index)
-        logger.info(f"Found device (by-path): {entry} -> video{video_index}")
 
-    logger.info(f"by-path scan found {len(indices)} device(s)")
-    return indices
+        # Extract USB port identifier (e.g. "0:2" or "0:3.1") from entries like
+        # "platform-3610000.usb-usb-0:2:1.0-video-index0"
+        port_match = re.search(r"usb-(\d+:\d+(?:\.\d+)?):[\d.]+\-video-index0$", entry)
+        if port_match:
+            port = port_match.group(1)
+            port_map[port] = video_index
+            logger.info(f"Found device (by-path): {entry} -> video{video_index}, usb_port={port}")
+        else:
+            logger.info(f"Found device (by-path): {entry} -> video{video_index}")
+
+    logger.info(f"by-path scan found {len(indices)} device(s), {len(port_map)} port mapping(s)")
+    return indices, port_map
+
+
+def _load_usb_port_overrides():
+    """
+    Load USB port override mappings from system_config.json.
+
+    Looks for camera entries in camera_mounted_positions that have a "usb_port"
+    field. These entries force a specific camera identifier to be associated
+    with the camera plugged into that USB port, regardless of auto-detection.
+
+    Returns:
+        dict: Mapping of {usb_port_string: camera_identifier}, e.g.
+            {"0:2": "HBVCAM01", "0:3.1": "HBVCAM02"}
+    """
+    try:
+        data_path = os.path.join(
+            get_package_share_directory("vision_config_data"), "data", "system_config.json"
+        )
+        with open(data_path, "r") as f:
+            config_data = json.load(f)
+    except Exception as e:
+        logger.warning(f"Could not load system_config.json for USB port overrides: {e}")
+        return {}
+
+    overrides = {}
+    camera_positions = config_data.get("camera_mounted_positions", {})
+    for cam_id, cam_config in camera_positions.items():
+        if isinstance(cam_config, dict) and "usb_port" in cam_config:
+            usb_port = cam_config["usb_port"]
+            overrides[usb_port] = cam_id
+            logger.info(f"USB port override: port {usb_port} -> {cam_id}")
+
+    return overrides
 
 
 def scan_for_cameras():
@@ -149,6 +196,11 @@ def scan_for_cameras():
     for multiple physical devices) are discovered via by-path and assigned
     sequential names like HBVCAM01, HBVCAM02, sorted by video index.
 
+    If a camera entry in system_config.json has a "usb_port" field, that
+    camera is forcibly associated with the device on that USB port,
+    overriding auto-detection. This ensures cameras with duplicate serial
+    numbers are always mapped to the correct calibration and location.
+
     Returns:
         dict: Mapping of {identifier: video_index} where identifier is either
             a serial number string (e.g. "cam13") or a generated name
@@ -157,20 +209,40 @@ def scan_for_cameras():
     logger.info("Starting camera scan...")
 
     by_id_cameras = scan_by_id()
-    by_path_indices = scan_by_path()
+    by_path_indices, port_map = scan_by_path()
 
-    # Start with all by-id cameras
-    result = dict(by_id_cameras)
-    covered_indices = set(by_id_cameras.values())
+    # Apply USB port overrides from config before auto-detection fallback
+    usb_overrides = _load_usb_port_overrides()
+    result = {}
+    covered_indices = set()
 
-    # Find cameras visible in by-path but not covered by by-id.
-    # These are cameras that share a serial number with another camera,
-    # so by-id only has one entry for the group.
+    # First pass: apply USB port overrides
+    for usb_port, cam_id in usb_overrides.items():
+        if usb_port in port_map:
+            video_index = port_map[usb_port]
+            result[cam_id] = video_index
+            covered_indices.add(video_index)
+            logger.info(
+                f"USB port override applied: {cam_id} -> video{video_index} (port {usb_port})"
+            )
+        else:
+            logger.warning(
+                f"USB port override for '{cam_id}' specifies port '{usb_port}' "
+                f"but no device found on that port. Available ports: {list(port_map.keys())}"
+            )
+
+    # Second pass: add by-id cameras that weren't already covered by overrides
+    for serial, video_index in by_id_cameras.items():
+        if video_index not in covered_indices:
+            result[serial] = video_index
+            covered_indices.add(video_index)
+
+    # Third pass: assign auto-generated names to any remaining uncovered cameras
     uncovered = sorted(by_path_indices - covered_indices)
 
     if uncovered:
         logger.info(
-            f"Found {len(uncovered)} camera(s) via by-path not covered by by-id: "
+            f"Found {len(uncovered)} camera(s) via by-path not covered by by-id or overrides: "
             f"video indices {uncovered}"
         )
         for i, video_index in enumerate(uncovered, start=1):
