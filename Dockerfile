@@ -1,6 +1,3 @@
-# Multi-platform: use buildx for arm64 on x64 host, e.g.:
-#   docker buildx build --platform linux/arm64 -t ros_vision:arm64 .
-# Base image nvidia/cuda has multi-arch manifests; buildx selects the correct variant.
 FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
 
 RUN apt-get update && apt-get install -y sudo git vim lsb-release software-properties-common \
