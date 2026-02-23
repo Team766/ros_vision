@@ -29,6 +29,14 @@ find_package(vision_utils REQUIRED)
 find_package(vision_deps REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 
+# On aarch64 (L4T/JetPack), libnvinfer transitively depends on DLA libraries
+# (libnvdla_compiler.so, libcudla.so) which require Jetson-specific runtime libs
+# (libnvos.so, libnvcudla.so) that only exist on real hardware. Allow these
+# unresolved symbols at link time; they resolve at runtime on the Jetson.
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--allow-shlib-undefined")
+endif()
+
 set(VISION_DEPS_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../install/vision_deps)
 message(STATUS "VISION_DEPS_INSTALL_DIR is ${VISION_DEPS_INSTALL_DIR}")
 
