@@ -55,7 +55,7 @@ install_cuda_jetson() {
 	sudo dpkg -i cuda-tegra-repo-ubuntu2004-11-8-local_11.8.0-1_arm64.deb
 	sudo cp /var/cuda-tegra-repo-ubuntu2004-11-8-local/cuda-*-keyring.gpg /usr/share/keyrings/
 	sudo apt-get update
-	sudo apt-get -y install cuda-11-8
+	sudo apt-get -y install cuda-toolkit-11-8
 }
 
 install_llvm() {
@@ -131,20 +131,14 @@ case $arch in
         install_cuda_x86
         ;;
     aarch64)
-        case $(cat /proc/cpuinfo) in
-	    *0xd42*)
-                echo "Installing cuda on jetson"
-                install_cuda_jetson
-                ;;    
-	    *)
-                echo "Device is not detected to be Jetson Orin Nano; Not installing CUDA."
-	        ;;
-        esac
-	;;
+        echo "Installing cuda 11.8 on aarch64"
+        install_cuda_jetson
+        ;;
     *)
         echo "Unknown architecture: $arch"
-        # Handle unknown architecture here
         ;;
 esac
 
+# Finally make sure that we select cuda-11.8 from /etc/alternatives
+sudo update-alternatives --set cuda /usr/local/cuda-11.8
 
