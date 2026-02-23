@@ -139,4 +139,6 @@ case $arch in
         ;;
 esac
 
+# Finally make sure that we select cuda-11.8 from /etc/alternatives
+sudo update-alternatives --set cuda /usr/local/cuda-11.8
 
