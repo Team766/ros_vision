@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.8)
 project(game_piece_detection LANGUAGES CUDA CXX)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+  add_compile_options(-Wall -Wextra -Wpedantic -Wno-deprecated-enum-enum-conversion)
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)
