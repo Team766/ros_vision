@@ -80,7 +80,7 @@ docker run --privileged --rm tonistiigi/binfmt --install all
    ```
    Or manually:
    ```bash
-   docker buildx build --platform linux/arm64 -t ros_vision:arm64 --load .
+   docker buildx build --platform linux/arm64 -t ros_vision:arm64 --load -f ./Dockerfile.arm64 .
    ```
    The build runs under QEMU emulation, so it will be slower than a native x64 build. The resulting image can be saved and transferred to the arm64 device, or pushed to a registry and pulled there.
 
