@@ -69,7 +69,11 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t ros_vision:latest -f ./Dockerfile .
+        if [ "${{ matrix.arch }}" = "arm64" ]; then
+          docker build -t ros_vision:latest -f ./Dockerfile.arm64 .
+        else
+          docker build -t ros_vision:latest -f ./Dockerfile .
+        fi
 
     - name: Restore build cache
       uses: actions/cache@v4
