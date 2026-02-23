@@ -222,10 +222,15 @@ def scan_for_cameras():
             video_index = port_map[usb_port]
             result[cam_id] = video_index
             covered_indices.add(video_index)
+            print(f"USB port override: {cam_id} -> /dev/video{video_index} (port {usb_port})")
             logger.info(
                 f"USB port override applied: {cam_id} -> video{video_index} (port {usb_port})"
             )
         else:
+            print(
+                f"WARNING: USB port override for '{cam_id}' specifies port '{usb_port}' "
+                f"but no device found. Available ports: {list(port_map.keys())}"
+            )
             logger.warning(
                 f"USB port override for '{cam_id}' specifies port '{usb_port}' "
                 f"but no device found on that port. Available ports: {list(port_map.keys())}"
