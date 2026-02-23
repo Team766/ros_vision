@@ -19,6 +19,12 @@
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
+constexpr float CONF_THRESHOLD = 0.25f;
+constexpr float IOU_THRESHOLD = 0.45f;
+
+void preprocess_image(const cv::Mat& img, float* output,
+                      int input_width, int input_height, int input_channels);
+
 class GamePieceDetector : public rclcpp::Node {
 public:
 GamePieceDetector()
@@ -47,8 +53,64 @@ GamePieceDetector()
     get_extrinsic_params();
 
     // TODO: Initialize ModelInference object with engine file.
-    RCLCPP_INFO(this->get_logger(),
-                "ModelInference Initialization not implemented yet!");
+    fs::path config_path =
+        ament_index_cpp::get_package_share_directory("vision_config_data");
+    fs::path config_file = config_path / "data" / "system_config.json";
+
+    if (!std::filesystem::exists(config_file)) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unable to find system config file at path: %s",
+                   config_file.c_str());
+      return;
+    }
+
+    // Load the parameters from the file.
+    std::ifstream f(config_file);
+    json config_data = json::parse(f);
+
+
+    std::string engine_path = config_data.value("engine_file", "");
+
+    if (engine_path.empty()) {
+      RCLCPP_ERROR(this->get_logger(),
+          "Error: No engine file specified in config or command line");
+    }
+
+    if (!fs::exists(engine_path)) {
+      RCLCPP_ERROR(this->get_logger(),
+          "Error: Engine path not found: %s",
+          engine_path.c_str());
+    }
+
+    auto start_load = std::chrono::high_resolution_clock::now();
+    ModelInference model(engine_path);
+    auto end_load = std::chrono::high_resolution_clock::now();
+    auto load_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_load - start_load).count();
+    std::cout << "Loaded ModelInference Engine in " << load_time << " ms" << std::endl;
+    
+    input_channels_ = model.getInputChannels();
+    input_height_ = model.getInputHeight();
+    input_width_ = model.getInputWidth();
+    num_classes_ = model.getNumClasses();
+    num_predictions_ = model.getNumPredictions();
+
+    int config_input_channels = config_data.value("input_channels", 3);
+
+    input_size_ = input_channels_ * input_width_ * input_height_;
+    output_size_ = model.getOutputSize() / sizeof(float);
+
+    if (input_channels_ != config_input_channels) {
+      std::cerr << "Warning: Engine input channels (" << input_channels_
+              << ") differs from config (" << config_input_channels << ")" << std::endl;
+    }
+
+    if (config_data.contains("class_names")) {
+      for (const auto& name : config_data["class_names"]) {
+        class_names_.push_back(name.get<std::string>());
+      }
+    }
+
+
   }
 
   void init() {
@@ -212,8 +274,26 @@ private:
   void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
     cv::Mat bgr_img = cv_bridge::toCvCopy(msg, "bgr8")->image;
 
-    // TODO: Run the inference and publish the output to a message.
-    (void)bgr_img;  // Suppress unused warning until inference is implemented
+    std::vector<float> input_buffer(input_size_);
+    std::vector<float> output_buffer(output_size_);
+
+    int orig_width = bgr_img.cols;
+    int orig_height = bgr_img.rows;
+
+    preprocess_image(bgr_img, input_buffer.data(), input_width_, input_height_, input_channels_);
+
+    // TODO: Run inference with model and populate output_buffer
+
+    auto detections = parse_yolov11_output(
+      output_buffer.data(), num_predictions_, num_classes_, class_names_,
+      CONF_THRESHOLD, IOU_THRESHOLD);
+
+    auto scaled_detections = scale_detections(detections, input_width_, input_height_,
+                                               orig_width, orig_height);
+
+    std::cout << "  Size: " << orig_width << "x" << orig_height
+            << ", Detections: " << scaled_detections.size() << std::endl;
+    // TODO: Publish the inference and detections out
   }
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscriber_;
@@ -235,7 +315,69 @@ private:
   // NetworkTables config
   std::string table_address_;
   std::string table_name_;
+
+  size_t input_size_;
+  size_t output_size_;
+
+  int input_channels_;
+  int input_width_;
+  int input_height_;
+
+  std::vector<std::string> class_names_;
+
+  int num_predictions_;
+
+  int num_classes_;
+  
 };
+
+/**
+ * Preprocess an image for YOLOv11 inference.
+ * - Resize to model input size
+ * - Convert BGR to RGB (if 3 channels) or grayscale
+ * - Normalize to [0, 1]
+ * - Convert to NCHW format (channels first)
+ *
+ * @param img Input BGR image (any size)
+ * @param output Pre-allocated buffer for output
+ * @param input_width Model input width
+ * @param input_height Model input height
+ * @param input_channels Number of input channels (1 or 3)
+ */
+void preprocess_image(const cv::Mat& img, float* output,
+                      int input_width, int input_height, int input_channels) {
+  // Resize to model input size
+  cv::Mat resized;
+  cv::resize(img, resized, cv::Size(input_width, input_height));
+
+  cv::Mat processed;
+  if (input_channels == 3) {
+    // Convert BGR to RGB
+    cv::cvtColor(resized, processed, cv::COLOR_BGR2RGB);
+  } else if (input_channels == 1) {
+    // Convert to grayscale
+    cv::cvtColor(resized, processed, cv::COLOR_BGR2GRAY);
+  } else {
+    processed = resized;
+  }
+
+  // Convert to float and normalize to [0, 1]
+  cv::Mat float_img;
+  int cv_type = (input_channels == 1) ? CV_32FC1 : CV_32FC3;
+  processed.convertTo(float_img, cv_type, 1.0 / 255.0);
+
+  // Convert from HWC to CHW (NCHW with batch=1)
+  size_t channel_size = input_width * input_height;
+  if (input_channels == 1) {
+    memcpy(output, float_img.data, channel_size * sizeof(float));
+  } else {
+    std::vector<cv::Mat> channels(input_channels);
+    cv::split(float_img, channels);
+    for (int c = 0; c < input_channels; ++c) {
+      memcpy(output + c * channel_size, channels[c].data, channel_size * sizeof(float));
+    }
+  }
+}
 
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
