@@ -562,6 +562,7 @@ def write_diagnostic_config(
         diag["cameras"][cam_id] = {
             "intrinsics_filename": config["cameras"][cam_id]["intrinsics_filename"],
             "rotation": rotation_list,
+            "rotation_angles_deg": angles.tolist(),
             "offset": offset_list,
         }
 
