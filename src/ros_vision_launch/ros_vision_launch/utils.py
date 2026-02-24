@@ -11,36 +11,64 @@ logger = logging.getLogger("ros_vision_launch.utils")
 BY_ID_PATH = "/dev/v4l/by-id/"
 """Path to the directory containing persistent V4L device symlinks by hardware ID."""
 
+BY_PATH_PATH = "/dev/v4l/by-path/"
+"""Path to the directory containing persistent V4L device symlinks by USB path."""
 
-def scan_for_cameras():
+
+def _resolve_video_index(directory, entry):
     """
-    For each camera, find the /dev/video* device associated with its -index0 symlink,
-    and map the serial number to the actual video index (as integer).
+    Resolve a symlink in a /dev/v4l/ directory to its /dev/videoN index.
+
+    Args:
+        directory: The directory containing the symlink.
+        entry: The symlink filename.
+
+    Returns:
+        int or None: The video index, or None if it couldn't be resolved.
     """
-    logger.info("Starting camera scan...")
+    device_path = os.path.realpath(os.path.join(directory, entry))
+    vid_match = re.search(r"/dev/video(\d+)$", device_path)
+    if not vid_match:
+        logger.warning(
+            f"Could not extract video index from {device_path}, skipping"
+        )
+        return None
+    return int(vid_match.group(1))
+
+
+def scan_by_id():
+    """
+    Scan /dev/v4l/by-id/ for cameras and return a mapping of serial numbers
+    to video indices.
+
+    Returns:
+        dict: Mapping of {serial_number: video_index}. If multiple physical
+            cameras share the same serial, only one will appear (the last one
+            found by the filesystem listing).
+    """
     if not os.path.exists(BY_ID_PATH):
-        logger.error(f"{BY_ID_PATH} does not exist")
-        raise Exception(f"Error: {BY_ID_PATH} does not exist.")
-    
+        logger.info(f"{BY_ID_PATH} does not exist, skipping by-id scan")
+        return {}
+
     logger.debug(f"Scanning directory: {BY_ID_PATH}")
-    cameras_by_serial_id = {}
+    cameras = {}
     entries = os.listdir(BY_ID_PATH)
     logger.info(f"Found {len(entries)} entries in {BY_ID_PATH}")
-    
+
     for entry in entries:
         logger.debug(f"Processing entry: {entry}")
         # Only consider symlinks ending in -index0 (main video stream)
         if not entry.endswith("index0"):
             logger.debug(f"Skipping {entry}: does not end with 'index0'")
             continue
-            
+
         # Check if this is a camera device (broader pattern matching)
         if "Camera" not in entry and "camera" not in entry.lower():
             logger.debug(f"Skipping {entry}: does not contain 'Camera' or 'camera'")
             continue
-            
+
         logger.debug(f"Processing camera device: {entry}")
-        
+
         # Extract the serial number from the symlink name
         # First try the original pattern for devices with Camera_(\d+)
         match = re.search(r"Camera_(\d+)", entry)
@@ -63,35 +91,197 @@ def scan_for_cameras():
                     logger.warning(f"Could not extract serial from {entry}, skipping")
                     continue
 
-        # Resolve symlink to get the /dev/video* device path
-        device_path = os.path.realpath(os.path.join(BY_ID_PATH, entry))
-        logger.debug(f"Resolved device path: {device_path}")
-        
-        # Robustly extract the number from /dev/videoN
-        vid_match = re.search(r"/dev/video(\d+)$", device_path)
-        if not vid_match:
-            logger.warning(
-                f"Could not extract video index from {device_path}, skipping"
-            )
+        video_index = _resolve_video_index(BY_ID_PATH, entry)
+        if video_index is None:
             continue
 
-        video_index = int(vid_match.group(1))
-        cameras_by_serial_id[serial] = video_index
+        if serial in cameras:
+            logger.warning(
+                f"Duplicate serial '{serial}' in by-id (video{cameras[serial]} and "
+                f"video{video_index}). This camera will be identified by USB path instead."
+            )
+        cameras[serial] = video_index
         logger.info(
-            f"Found camera: serial={serial}, video_index={video_index}, device={entry}"
+            f"Found camera (by-id): serial={serial}, video_index={video_index}, device={entry}"
         )
 
-    if not cameras_by_serial_id:
-        error_msg = "\n\nError: No camera devices found in by-id entries!\n\n"
-        error_msg += "This utility depends on finding the string 'Camera' or 'camera' somewhere in the filename.\n"
-        error_msg += f"We found these devices: {list(os.listdir(BY_ID_PATH))}\n\n"
-        error_msg += "To debug, try listing the contents of /dev/v4l/by-id and confirming that Camera is in the device filename.\n"
-        error_msg += "With an arducam, try resetting the serial number so that the Device Name is 'Camera': https://docs.arducam.com/UVC-Camera/Serial-Number-Tool-Guide/"
+    logger.info(f"by-id scan found {len(cameras)} camera(s)")
+    return cameras
+
+
+def scan_by_path():
+    """
+    Scan /dev/v4l/by-path/ for all video devices and return their video indices
+    and a mapping of USB port identifiers to video indices.
+
+    Returns:
+        tuple: (indices, port_map) where:
+            - indices: Set of video indices (ints) found via by-path.
+            - port_map: Dict mapping USB port strings (e.g. "0:2", "0:3.1")
+              to video indices.
+    """
+    if not os.path.exists(BY_PATH_PATH):
+        logger.info(f"{BY_PATH_PATH} does not exist, skipping by-path scan")
+        return set(), {}
+
+    logger.debug(f"Scanning directory: {BY_PATH_PATH}")
+    indices = set()
+    port_map = {}
+    entries = os.listdir(BY_PATH_PATH)
+    logger.info(f"Found {len(entries)} entries in {BY_PATH_PATH}")
+
+    for entry in entries:
+        if not entry.endswith("-video-index0"):
+            continue
+
+        video_index = _resolve_video_index(BY_PATH_PATH, entry)
+        if video_index is None:
+            continue
+
+        indices.add(video_index)
+
+        # Extract USB port identifier (e.g. "0:2" or "0:3.1") from entries like
+        # "platform-3610000.usb-usb-0:2:1.0-video-index0"
+        port_match = re.search(r"usb-(\d+:\d+(?:\.\d+)?):[\d.]+\-video-index0$", entry)
+        if port_match:
+            port = port_match.group(1)
+            port_map[port] = video_index
+            logger.info(f"Found device (by-path): {entry} -> video{video_index}, usb_port={port}")
+        else:
+            logger.info(f"Found device (by-path): {entry} -> video{video_index}")
+
+    logger.info(f"by-path scan found {len(indices)} device(s), {len(port_map)} port mapping(s)")
+    return indices, port_map
+
+
+def _load_usb_port_overrides():
+    """
+    Load USB port override mappings from system_config.json.
+
+    Looks for camera entries in camera_mounted_positions that have a "usb_port"
+    field. These entries force a specific camera identifier to be associated
+    with the camera plugged into that USB port, regardless of auto-detection.
+
+    Returns:
+        dict: Mapping of {usb_port_string: camera_identifier}, e.g.
+            {"0:2": "HBVCAM01", "0:3.1": "HBVCAM02"}
+    """
+    try:
+        data_path = os.path.join(
+            get_package_share_directory("vision_config_data"), "data", "system_config.json"
+        )
+        with open(data_path, "r") as f:
+            config_data = json.load(f)
+    except Exception as e:
+        logger.warning(f"Could not load system_config.json for USB port overrides: {e}")
+        return {}
+
+    overrides = {}
+    camera_positions = config_data.get("camera_mounted_positions", {})
+    for cam_id, cam_config in camera_positions.items():
+        if isinstance(cam_config, dict) and "usb_port" in cam_config:
+            usb_port = cam_config["usb_port"]
+            if usb_port in overrides:
+                error_msg = (
+                    f"FATAL: Duplicate USB port '{usb_port}' in system_config.json: "
+                    f"both '{overrides[usb_port]}' and '{cam_id}' map to the same port"
+                )
+                print(error_msg)
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+            overrides[usb_port] = cam_id
+            logger.info(f"USB port override: port {usb_port} -> {cam_id}")
+
+    return overrides
+
+
+def scan_for_cameras():
+    """
+    Scan for cameras using both /dev/v4l/by-id/ and /dev/v4l/by-path/.
+
+    Cameras with unique serial numbers are identified by serial (backward
+    compatible). Cameras that share a serial number (only one by-id entry
+    for multiple physical devices) are discovered via by-path and assigned
+    sequential names like HBVCAM01, HBVCAM02, sorted by video index.
+
+    If a camera entry in system_config.json has a "usb_port" field, that
+    camera is forcibly associated with the device on that USB port,
+    overriding auto-detection. This ensures cameras with duplicate serial
+    numbers are always mapped to the correct calibration and location.
+
+    Returns:
+        dict: Mapping of {identifier: video_index} where identifier is either
+            a serial number string (e.g. "cam13") or a generated name
+            (e.g. "HBVCAM01").
+    """
+    logger.info("Starting camera scan...")
+
+    by_id_cameras = scan_by_id()
+    by_path_indices, port_map = scan_by_path()
+
+    # Apply USB port overrides from config before auto-detection fallback
+    usb_overrides = _load_usb_port_overrides()
+    result = {}
+    covered_indices = set()
+
+    # First pass: apply USB port overrides
+    for usb_port, cam_id in usb_overrides.items():
+        if usb_port in port_map:
+            video_index = port_map[usb_port]
+            result[cam_id] = video_index
+            covered_indices.add(video_index)
+            print(f"USB port override: {cam_id} -> /dev/video{video_index} (port {usb_port})")
+            logger.info(
+                f"USB port override applied: {cam_id} -> video{video_index} (port {usb_port})"
+            )
+        else:
+            error_msg = (
+                f"FATAL: USB port override for '{cam_id}' specifies port '{usb_port}' "
+                f"but no device found on that port. Available ports: {list(port_map.keys())}"
+            )
+            print(error_msg)
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
+    # Second pass: add by-id cameras that weren't already covered by overrides
+    for serial, video_index in by_id_cameras.items():
+        if video_index not in covered_indices:
+            result[serial] = video_index
+            covered_indices.add(video_index)
+
+    # Third pass: assign auto-generated names to any remaining uncovered cameras
+    uncovered = sorted(by_path_indices - covered_indices)
+
+    if uncovered:
+        logger.info(
+            f"Found {len(uncovered)} camera(s) via by-path not covered by by-id or overrides: "
+            f"video indices {uncovered}"
+        )
+        for i, video_index in enumerate(uncovered, start=1):
+            name = f"HBVCAM{i:02d}"
+            result[name] = video_index
+            logger.info(
+                f"Assigned name '{name}' to camera at video{video_index}"
+            )
+
+    if not result:
+        error_msg = "\n\nError: No camera devices found!\n\n"
+        error_msg += "Scanned both /dev/v4l/by-id/ and /dev/v4l/by-path/.\n"
+        if os.path.exists(BY_ID_PATH):
+            error_msg += f"by-id devices: {list(os.listdir(BY_ID_PATH))}\n"
+        else:
+            error_msg += f"{BY_ID_PATH} does not exist.\n"
+        if os.path.exists(BY_PATH_PATH):
+            error_msg += f"by-path devices: {list(os.listdir(BY_PATH_PATH))}\n"
+        else:
+            error_msg += f"{BY_PATH_PATH} does not exist.\n"
+        error_msg += "\nFor by-id detection, this utility looks for 'Camera' or 'camera' in the device filename.\n"
+        error_msg += "With an arducam, try resetting the serial number: https://docs.arducam.com/UVC-Camera/Serial-Number-Tool-Guide/"
         logger.error(error_msg)
         raise Exception(error_msg)
-    
-    logger.info(f"Camera scan completed. Found {len(cameras_by_serial_id)} cameras")
-    return cameras_by_serial_id
+
+    logger.info(f"Camera scan completed. Found {len(result)} camera(s): {result}")
+    return result
 
 
 def check_format(config_data):
@@ -117,10 +307,11 @@ def get_config_data(cameras_by_serial_id):
     Load and validate camera configuration data from the ROS package.
 
     Args:
-        cameras_by_serial_id (dict): Mapping of camera serials (str) to video indices (int).
+        cameras_by_serial_id (dict): Mapping of camera identifiers (serial numbers
+            or generated names like "HBVCAM01") to video indices (int).
 
     Returns:
-        dict: Mapping of camera serial numbers (str) to their camera locations from config.
+        dict: Mapping of camera identifiers (str) to their camera locations from config.
 
     Raises:
         Exception: If the configuration file is not found or required keys are missing.
@@ -151,9 +342,10 @@ def get_config_data(cameras_by_serial_id):
     result = {}
     for k, v in cameras_by_serial_id.items():
         if k not in camera_mounted_positions:
-            logger.error(f"Camera serial {k} not found in configuration")
+            logger.error(f"Camera identifier {k} not found in configuration")
             raise Exception(
-                f"Camera serial {k} not found in camera_mounted_positions configuration"
+                f"Camera identifier '{k}' not found in camera_mounted_positions configuration. "
+                f"Available keys: {list(camera_mounted_positions.keys())}"
             )
 
         # Extract the location from the camera config object
@@ -172,12 +364,11 @@ def get_config_data(cameras_by_serial_id):
             )
         else:
             logger.error(
-                f"Invalid camera config format for serial {k}: {camera_config}"
+                f"Invalid camera config format for identifier {k}: {camera_config}"
             )
             raise Exception(
-                f"Invalid camera config format for serial {k}: expected dict with 'location' field or string"
+                f"Invalid camera config format for identifier {k}: expected dict with 'location' field or string"
             )
 
     logger.info(f"Configuration mapping completed for {len(result)} cameras")
     return result
-
