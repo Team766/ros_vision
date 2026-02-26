@@ -311,6 +311,16 @@ def compute_loss(
     # vector d, shift all tag positions to compensate). We break this 3-DOF
     # ambiguity by penalizing the mean shift, while allowing individual cameras
     # to adjust freely to find the true center of rotation.
+    #
+    # Skip regularization when any camera is fixed — the fixed camera already
+    # anchors the coordinate frame, so there is no gauge ambiguity to prevent.
+    any_fixed = any(
+        not torch_params[cam_id]["translation"].requires_grad
+        for cam_id in torch_params
+    )
+    if any_fixed:
+        return data_loss
+
     reg_weight = 10.0
     cam_ids = list(torch_params.keys())
     mean_shift = torch.zeros(3, dtype=torch.float32, device=device)
@@ -577,6 +587,59 @@ def write_diagnostic_config(
     print(f"\nDiagnostic config written to: {output_path}")
 
 
+def update_system_config(system_config_path, torch_params, solver_config):
+    """
+    Update system_config.json extrinsics with solved camera parameters.
+
+    Maps solver camera serials to extrinsic locations via the
+    camera_mounted_positions[serial]["location"] field.
+
+    Args:
+        system_config_path: Path to system_config.json.
+        torch_params: Optimized camera parameter tensors (keyed by serial).
+        solver_config: Solver config dict (to access camera serial list).
+    """
+    with open(system_config_path, "r") as f:
+        sys_config = json.load(f)
+
+    cam_positions = sys_config.get("camera_mounted_positions", {})
+    extrinsics = sys_config.get("extrinsics", {})
+
+    for cam_serial, rec in torch_params.items():
+        if cam_serial not in cam_positions:
+            print(f"WARNING: camera '{cam_serial}' not found in camera_mounted_positions, skipping")
+            continue
+
+        location = cam_positions[cam_serial].get("location")
+        if location is None:
+            print(f"WARNING: camera '{cam_serial}' has no location field, skipping")
+            continue
+
+        if location not in extrinsics:
+            print(f"  Creating new extrinsics entry for location '{location}'")
+
+        angles = rec["rotations"].detach().cpu().numpy()
+        translation = rec["translation"].detach().cpu().numpy()
+        R_cam = (
+            compose_rotations_xyz_torch(angles[0], angles[1], angles[2])
+            @ camera_to_robot_torch()
+        )
+
+        extrinsics[location] = {
+            "rotation": R_cam.detach().cpu().numpy().tolist(),
+            "offset": translation.tolist(),
+        }
+        print(f"  Updated extrinsics['{location}'] from camera '{cam_serial}'")
+
+    sys_config["extrinsics"] = extrinsics
+
+    with open(system_config_path, "w") as f:
+        json.dump(sys_config, f, indent=4)
+        f.write("\n")
+
+    print(f"\nSystem config updated: {system_config_path}")
+
+
 def main(args=None):
     parser = argparse.ArgumentParser(
         description="Solve for camera extrinsics using a rotating platform with AprilTags."
@@ -585,6 +648,10 @@ def main(args=None):
     parser.add_argument(
         "-o", "--output", type=str, default=None,
         help="Output path for diagnostic config YAML (default: auto-generated from camera IDs)",
+    )
+    parser.add_argument(
+        "--update-config", type=str, default=None,
+        help="Path to system_config.json to update with solved extrinsics",
     )
     parsed_args = parser.parse_args(args)
 
@@ -617,6 +684,10 @@ def main(args=None):
     write_diagnostic_config(
         config, torch_params, tag_world_positions, tag_ids, output_path=output_path
     )
+
+    if parsed_args.update_config:
+        print("\n--- Updating System Config ---")
+        update_system_config(parsed_args.update_config, torch_params, config)
 
 
 if __name__ == "__main__":
