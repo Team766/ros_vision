@@ -9,7 +9,10 @@ message ApriltagProto {
     required double x = 3;
     required double y = 4;
     required double z = 5;
-    // TODO: consider adding covariance, rotation
+    optional double qw = 6;
+    optional double qx = 7;
+    optional double qy = 8;
+    optional double qz = 9;
 }
 
 message ApriltagListProto {

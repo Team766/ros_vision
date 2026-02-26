@@ -37,6 +37,44 @@ ApriltagsDetector::ApriltagsDetector(bool bypass_init)
   extrinsic_offset_ = cv::Mat::zeros(3, 1, CV_64F);
 }
 
+cv::Vec4d ApriltagsDetector::rotationMatrixToQuaternion(const cv::Mat &R) {
+  // Shepperd method: pick the largest diagonal element to avoid division by
+  // near-zero values, ensuring numerical stability for all rotations.
+  double r00 = R.at<double>(0, 0);
+  double r11 = R.at<double>(1, 1);
+  double r22 = R.at<double>(2, 2);
+  double trace = r00 + r11 + r22;
+
+  double w, x, y, z;
+  if (trace > 0.0) {
+    double s = 0.5 / std::sqrt(trace + 1.0);
+    w = 0.25 / s;
+    x = (R.at<double>(2, 1) - R.at<double>(1, 2)) * s;
+    y = (R.at<double>(0, 2) - R.at<double>(2, 0)) * s;
+    z = (R.at<double>(1, 0) - R.at<double>(0, 1)) * s;
+  } else if (r00 > r11 && r00 > r22) {
+    double s = 2.0 * std::sqrt(1.0 + r00 - r11 - r22);
+    w = (R.at<double>(2, 1) - R.at<double>(1, 2)) / s;
+    x = 0.25 * s;
+    y = (R.at<double>(0, 1) + R.at<double>(1, 0)) / s;
+    z = (R.at<double>(0, 2) + R.at<double>(2, 0)) / s;
+  } else if (r11 > r22) {
+    double s = 2.0 * std::sqrt(1.0 + r11 - r00 - r22);
+    w = (R.at<double>(0, 2) - R.at<double>(2, 0)) / s;
+    x = (R.at<double>(0, 1) + R.at<double>(1, 0)) / s;
+    y = 0.25 * s;
+    z = (R.at<double>(1, 2) + R.at<double>(2, 1)) / s;
+  } else {
+    double s = 2.0 * std::sqrt(1.0 + r22 - r00 - r11);
+    w = (R.at<double>(1, 0) - R.at<double>(0, 1)) / s;
+    x = (R.at<double>(0, 2) + R.at<double>(2, 0)) / s;
+    y = (R.at<double>(1, 2) + R.at<double>(2, 1)) / s;
+    z = 0.25 * s;
+  }
+
+  return cv::Vec4d(w, x, y, z);
+}
+
 /**
  * @brief Initialize publishers and image transport after construction.
  *
@@ -437,6 +475,11 @@ void ApriltagsDetector::imageCallback(
       cv::Mat aprilTagInRobotFrame =
           transformCameraToRobot(aprilTagInCameraFrame);
 
+      // Compute tag orientation in robot frame as quaternion (w, x, y, z)
+      cv::Mat tagRotationInCamera(3, 3, CV_64F, pose.R->data);
+      cv::Mat robotRotation = extrinsic_rotation_ * tagRotationInCamera;
+      cv::Vec4d robotQuaternion = rotationMatrixToQuaternion(robotRotation);
+
       // Calculate Euclidean distance from camera origin (use camera frame for
       // consistency)
       double distance =
@@ -446,7 +489,8 @@ void ApriltagsDetector::imageCallback(
 
       // Store detection data
       detection_data.push_back({det, aprilTagInCameraFrame,
-                                aprilTagInRobotFrame.clone(), distance, err});
+                                aprilTagInRobotFrame.clone(), robotQuaternion,
+                                distance, err});
 
       RCLCPP_DEBUG(this->get_logger(),
                    "Tag id: %d, distance: %.6f, x: %.6f, y: %.6f, z: %.6f, "
@@ -484,6 +528,10 @@ void ApriltagsDetector::imageCallback(
       tag_proto->set_x(data.robot_position.at<double>(0));
       tag_proto->set_y(data.robot_position.at<double>(1));
       tag_proto->set_z(data.robot_position.at<double>(2));
+      tag_proto->set_qw(data.robot_quaternion[0]);
+      tag_proto->set_qx(data.robot_quaternion[1]);
+      tag_proto->set_qy(data.robot_quaternion[2]);
+      tag_proto->set_qz(data.robot_quaternion[3]);
 
       // Publish both camera frame and robot frame (sorted by distance)
       apriltags_cuda::add_tag_detection(
