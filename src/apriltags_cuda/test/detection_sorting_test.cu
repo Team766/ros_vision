@@ -44,10 +44,11 @@ public:
       &det1,
       pos1,
       robot_pos1.clone(),
+      cv::Vec4d(1,0,0,0),
       5.0,
       0.1
     });
-    
+
     // Detection 2: Close (distance = 2.0)
     cv::Vec3d pos2(0.0, 0.0, 2.0);  // distance = 2.0
     cv::Mat robot_pos2 = cv::Mat::zeros(3, 1, CV_64F);
@@ -55,10 +56,11 @@ public:
       &det2,
       pos2,
       robot_pos2.clone(),
+      cv::Vec4d(1,0,0,0),
       2.0,
       0.05
     });
-    
+
     // Detection 3: Very close (distance = 1.0)
     cv::Vec3d pos3(1.0, 0.0, 0.0);  // distance = 1.0
     cv::Mat robot_pos3 = cv::Mat::zeros(3, 1, CV_64F);
@@ -66,6 +68,7 @@ public:
       &det3,
       pos3,
       robot_pos3.clone(),
+      cv::Vec4d(1,0,0,0),
       1.0,
       0.02
     });
@@ -130,6 +133,7 @@ TEST_F(DetectionSortingTest, DetectionDataStructCreation) {
     &det,
     camera_pos,
     robot_pos.clone(),
+    cv::Vec4d(1,0,0,0),
     distance,
     pose_error
   };
@@ -211,7 +215,7 @@ TEST_F(DetectionSortingTest, SortingEdgeCases) {
   cv::Mat robot_pos = cv::Mat::zeros(3, 1, CV_64F);
   
   std::vector<ApriltagsDetector::DetectionData> single_data = {{
-    &det, pos, robot_pos.clone(), std::sqrt(3.0), 0.1
+    &det, pos, robot_pos.clone(), cv::Vec4d(1,0,0,0), std::sqrt(3.0), 0.1
   }};
   
   auto sorted_single = detector_->testSortDetections(single_data);
@@ -232,8 +236,8 @@ TEST_F(DetectionSortingTest, SortingEqualDistances) {
   cv::Mat robot_pos = cv::Mat::zeros(3, 1, CV_64F);
   
   std::vector<ApriltagsDetector::DetectionData> equal_distance_data = {
-    {&det1, pos1, robot_pos.clone(), 1.0, 0.1},
-    {&det2, pos2, robot_pos.clone(), 1.0, 0.1}
+    {&det1, pos1, robot_pos.clone(), cv::Vec4d(1,0,0,0), 1.0, 0.1},
+    {&det2, pos2, robot_pos.clone(), cv::Vec4d(1,0,0,0), 1.0, 0.1}
   };
   
   auto sorted_data = detector_->testSortDetections(equal_distance_data);
@@ -267,6 +271,7 @@ TEST_F(DetectionSortingTest, SortingPerformance) {
       &detections[i],
       pos,
       robot_pos.clone(),
+      cv::Vec4d(1,0,0,0),
       distance,
       0.1
     });

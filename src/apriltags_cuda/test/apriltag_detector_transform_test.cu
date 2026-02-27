@@ -267,6 +267,99 @@ TEST_F(ApriltagDetectorTransformTest, DetectorSmallDistanceTransform) {
   EXPECT_NEAR(robot_pos.at<double>(2), 0.1, TOLERANCE);
 }
 
+// === Quaternion conversion tests ===
+
+// Test: Identity rotation → quaternion (1, 0, 0, 0)
+TEST_F(ApriltagDetectorTransformTest, QuaternionIdentity) {
+  cv::Vec4d q = ApriltagsDetector::rotationMatrixToQuaternion(identity_rotation_);
+  EXPECT_NEAR(q[0], 1.0, TOLERANCE);  // w
+  EXPECT_NEAR(q[1], 0.0, TOLERANCE);  // x
+  EXPECT_NEAR(q[2], 0.0, TOLERANCE);  // y
+  EXPECT_NEAR(q[3], 0.0, TOLERANCE);  // z
+}
+
+// Test: 90° rotation around Z → quaternion (cos(45°), 0, 0, sin(45°))
+TEST_F(ApriltagDetectorTransformTest, Quaternion90DegZ) {
+  cv::Vec4d q = ApriltagsDetector::rotationMatrixToQuaternion(rotation_90z_);
+  double expected_w = std::cos(M_PI / 4.0);  // cos(45°)
+  double expected_z = std::sin(M_PI / 4.0);  // sin(45°)
+  EXPECT_NEAR(q[0], expected_w, REALISTIC_TOLERANCE);
+  EXPECT_NEAR(q[1], 0.0, REALISTIC_TOLERANCE);
+  EXPECT_NEAR(q[2], 0.0, REALISTIC_TOLERANCE);
+  EXPECT_NEAR(q[3], expected_z, REALISTIC_TOLERANCE);
+}
+
+// Test: 180° rotation around X (trace = -1 edge case)
+TEST_F(ApriltagDetectorTransformTest, Quaternion180DegX) {
+  cv::Mat rot180x = cv::Mat::eye(3, 3, CV_64F);
+  rot180x.at<double>(1, 1) = -1.0;
+  rot180x.at<double>(2, 2) = -1.0;
+
+  cv::Vec4d q = ApriltagsDetector::rotationMatrixToQuaternion(rot180x);
+  // Expected: (0, 1, 0, 0) — pure 180° rotation around X
+  EXPECT_NEAR(q[0], 0.0, REALISTIC_TOLERANCE);
+  EXPECT_NEAR(std::abs(q[1]), 1.0, REALISTIC_TOLERANCE);  // sign ambiguity is OK
+  EXPECT_NEAR(q[2], 0.0, REALISTIC_TOLERANCE);
+  EXPECT_NEAR(q[3], 0.0, REALISTIC_TOLERANCE);
+}
+
+// Test: Composed rotation (extrinsic * tag_rotation) → quaternion
+TEST_F(ApriltagDetectorTransformTest, QuaternionComposedRotation) {
+  // 90° around Z (extrinsic) * 90° around X (tag) should compose correctly
+  cv::Mat rot90x = cv::Mat::eye(3, 3, CV_64F);
+  rot90x.at<double>(1, 1) = 0.0;
+  rot90x.at<double>(1, 2) = -1.0;
+  rot90x.at<double>(2, 1) = 1.0;
+  rot90x.at<double>(2, 2) = 0.0;
+
+  cv::Mat composed = rotation_90z_ * rot90x;
+  cv::Vec4d q = ApriltagsDetector::rotationMatrixToQuaternion(composed);
+
+  // Verify it's a valid unit quaternion
+  double norm = std::sqrt(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
+  EXPECT_NEAR(norm, 1.0, REALISTIC_TOLERANCE);
+
+  // Verify by converting back: q should reproduce the composed rotation matrix
+  // R = I + 2w*[x,y,z]x + 2*[x,y,z]x^2  (Rodrigues form from quaternion)
+  double w = q[0], x = q[1], y = q[2], z = q[3];
+  cv::Mat reconstructed = (cv::Mat_<double>(3, 3) <<
+    1-2*(y*y+z*z),  2*(x*y-w*z),    2*(x*z+w*y),
+    2*(x*y+w*z),    1-2*(x*x+z*z),  2*(y*z-w*x),
+    2*(x*z-w*y),    2*(y*z+w*x),    1-2*(x*x+y*y));
+
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      EXPECT_NEAR(reconstructed.at<double>(i, j), composed.at<double>(i, j),
+                  REALISTIC_TOLERANCE)
+          << "Mismatch at (" << i << "," << j << ")";
+    }
+  }
+}
+
+// Test: Quaternion is always unit-length for various rotations
+TEST_F(ApriltagDetectorTransformTest, QuaternionNormalization) {
+  std::vector<cv::Mat> rotations = {
+    identity_rotation_, rotation_90z_, realistic_rotation_
+  };
+
+  // Add a few more arbitrary rotations
+  for (double angle : {45.0, 120.0, 270.0}) {
+    double rad = angle * M_PI / 180.0;
+    cv::Mat r = cv::Mat::eye(3, 3, CV_64F);
+    r.at<double>(0, 0) = std::cos(rad);
+    r.at<double>(0, 2) = std::sin(rad);
+    r.at<double>(2, 0) = -std::sin(rad);
+    r.at<double>(2, 2) = std::cos(rad);
+    rotations.push_back(r);
+  }
+
+  for (const auto& rot : rotations) {
+    cv::Vec4d q = ApriltagsDetector::rotationMatrixToQuaternion(rot);
+    double norm = std::sqrt(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
+    EXPECT_NEAR(norm, 1.0, REALISTIC_TOLERANCE);
+  }
+}
+
 // Main function to run the tests
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);

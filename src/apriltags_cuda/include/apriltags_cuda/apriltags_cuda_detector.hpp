@@ -81,6 +81,16 @@ class ApriltagsDetector : public rclcpp::Node {
   virtual void init();
 
   /**
+   * @brief Convert a 3x3 rotation matrix to a quaternion (w, x, y, z).
+   *
+   * Uses the Shepperd method for numerical stability across all rotations.
+   *
+   * @param R 3x3 rotation matrix (CV_64F)
+   * @return cv::Vec4d quaternion in scalar-first order (w, x, y, z)
+   */
+  static cv::Vec4d rotationMatrixToQuaternion(const cv::Mat &R);
+
+  /**
    * @brief Destructor. Cleans up detector and stops publisher queue.
    */
   ~ApriltagsDetector();
@@ -92,6 +102,7 @@ class ApriltagsDetector : public rclcpp::Node {
     apriltag_detection_t *det;  ///< Pointer to the raw detection
     cv::Vec3d camera_position;  ///< Position in camera coordinate frame
     cv::Mat robot_position;     ///< Position in robot coordinate frame
+    cv::Vec4d robot_quaternion; ///< Orientation in robot frame as quaternion (w, x, y, z)
     double distance;            ///< Euclidean distance from camera origin
     double pose_error;          ///< Pose estimation error
   };

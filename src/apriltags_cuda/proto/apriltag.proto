@@ -6,10 +6,23 @@ option java_multiple_files = true;
 message ApriltagProto {
     required double collect_time = 1;
     required int32 tag_id = 2;
+    //Position vector elements: x, y, z
     required double x = 3;
     required double y = 4;
     required double z = 5;
-    // TODO: consider adding covariance, rotation
+    /* Quaternion representation of rotation.
+    Quaternions are a compact representation of a 3D rotation matrix.
+    They are really interesting as you can basically represent 9 numbers (from a 3x3 matrix)
+    with just 4 quaternion components.  As such they are used in many applications where
+    you might be bandwidth constrained but need to send rotation information.  I like to think of
+    them as an axis-angle representation where the qx/qy/qz define the axis and the qw (scalar) 
+    defines the angle.  here is the wikipedia page: https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation
+    And here is a great video explaining quaternions: https://eater.net/quaternions/video/intro
+    */
+    optional double qw = 6;
+    optional double qx = 7;
+    optional double qy = 8;
+    optional double qz = 9;
 }
 
 message ApriltagListProto {
