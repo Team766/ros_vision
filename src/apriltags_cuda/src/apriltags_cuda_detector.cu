@@ -477,8 +477,8 @@ void ApriltagsDetector::imageCallback(
 
       // Compute tag orientation in robot frame as quaternion (w, x, y, z)
       cv::Mat tagRotationInCamera(3, 3, CV_64F, pose.R->data);
-      cv::Mat robotRotation = extrinsic_rotation_ * tagRotationInCamera;
-      cv::Vec4d robotQuaternion = rotationMatrixToQuaternion(robotRotation);
+      cv::Mat tagRotationInRobotFrame = extrinsic_rotation_ * tagRotationInCamera;
+      cv::Vec4d tagQuaternionInRobotFrame = rotationMatrixToQuaternion(tagRotationInRobotFrame);
 
       // Calculate Euclidean distance from camera origin (use camera frame for
       // consistency)
@@ -489,7 +489,7 @@ void ApriltagsDetector::imageCallback(
 
       // Store detection data
       detection_data.push_back({det, aprilTagInCameraFrame,
-                                aprilTagInRobotFrame.clone(), robotQuaternion,
+                                aprilTagInRobotFrame.clone(), tagQuaternionInRobotFrame,
                                 distance, err});
 
       RCLCPP_DEBUG(this->get_logger(),
