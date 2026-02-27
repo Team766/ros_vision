@@ -1,0 +1,167 @@
+name: Multi-Architecture Release Build
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  workflow_dispatch:  # Allow manual triggering
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+
+    steps:
+    - name: Check disk space
+      run: df . -h
+
+    - name: Clean up disk space
+      run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/local/graalvm/
+          sudo rm -rf /usr/local/.ghcup/
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/local/share/chromium
+          sudo rm -rf /usr/local/lib/node_modules
+          sudo rm -rf /opt/microsoft
+          sudo rm -rf /opt/az
+          sudo rm -rf /opt/google
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/share/miniconda
+          sudo rm -rf /usr/local/julia*
+          sudo rm -rf /usr/share/kotlinc
+          sudo rm -rf /usr/share/gradle*
+          sudo rm -rf /usr/share/apache-maven*
+          sudo rm -rf /usr/share/sbt
+          sudo rm -rf /usr/local/aws-*
+          sudo rm -rf /usr/local/share/vcpkg
+          sudo rm -rf /imagegeneration
+          sudo rm -rf /opt/pipx
+          sudo rm -rf /usr/lib/jvm
+          sudo rm -rf /usr/lib/google-cloud-sdk
+          sudo rm -rf /usr/lib/mono
+          sudo rm -rf /usr/lib/heroku
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          docker system prune -af
+          docker builder prune -af
+
+    - name: Check disk space after cleanup
+      run: df . -h
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Build Docker image
+      run: |
+        if [ "${{ matrix.arch }}" = "arm64" ]; then
+          docker build -t ros_vision:latest -f ./Dockerfile.arm64 .
+        else
+          docker build -t ros_vision:latest -f ./Dockerfile .
+        fi
+
+    - name: Restore build cache
+      uses: actions/cache@v4
+      with:
+          path: build
+          key: ${{ runner.os }}-build-${{ matrix.arch }}-${{ hashFiles('**/*.cpp', '**/*.h') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ matrix.arch }}-
+
+    - name: Build project
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/workspace ros_vision:latest \
+          bash -c "cd /workspace && \
+          git config --system --add safe.directory /workspace/build/ && \
+          git config --system --add safe.directory /workspace/build/vision_deps && \
+          git config --system --add safe.directory /workspace/build/vision_deps/apriltag && \
+          git config --system --add safe.directory /workspace/build/vision_deps/OpenCV && \
+          git config --global --add safe.directory /workspace/build/vision_deps/OpenCV/src/OpenCV && \
+          git config --system --add safe.directory /workspace/build/vision_deps/wpilib && \
+          git config --global --add safe.directory /workspace/build/vision_deps/wpilib/src/wpilib && \
+          git config --global --add safe.directory /workspace/build/vision_deps/wpilib/src/wpilib-build/_deps/googletest-src && \
+          git config --system --add safe.directory /workspace/build/vision_deps/wpilib/src/wpilib-build/_deps/apriltaglib-src && \
+          git config --system --add safe.directory /workspace/build/vision_deps/seasocks/src/seasocks && \
+          git config --system --add safe.directory /workspace/build/vision_deps/cccl/src/CCCL && \
+          git config --system --add safe.directory /workspace/build/vision_deps/json/src/json && \
+          git config --system --add safe.directory /workspace/build/vision_deps/apriltag/src/apriltag && \
+          /workspace/bootstrap.sh"
+
+    - name: Run tests
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/workspace ros_vision:latest \
+          bash -c "cd /workspace && ./run_tests.sh --cpu-only"
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.arch }}
+        path: |
+          test_results.xml
+          test_results/
+          log/latest_test/
+        retention-days: 14
+        if-no-files-found: warn
+
+    - name: Create release bundle
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/workspace ros_vision:latest \
+          bash -c "cd /workspace && ./release.sh bundle-only"
+
+    - name: Upload release bundle
+      uses: actions/upload-artifact@v4
+      with:
+        name: ros-vision-bundle-${{ matrix.arch }}
+        path: ros_vision_bundle-v*.tar.gz
+        retention-days: 90
+        compression-level: 0
+        if-no-files-found: error
+
+    - name: Clean up after build
+      run: |
+        docker system prune -af
+        sudo apt-get clean
+
+  release-summary:
+    name: Multi-Architecture Release Summary
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+    - name: Check build results
+      run: |
+        if [[ "${{ needs.build.result }}" != "success" ]]; then
+          echo "Multi-architecture build failed"
+          exit 1
+        else
+          echo "Multi-architecture build completed successfully"
+          echo "Release bundles available for: amd64, arm64"
+        fi
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: ros-vision-bundle-*
+        merge-multiple: true
+
+    - name: List available bundles
+      run: |
+        echo "Available release bundles:"
+        ls -lh ros_vision_bundle-v*.tar.gz || echo "No bundle files found"

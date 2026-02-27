@@ -63,6 +63,32 @@ This command maps your home directory on the host to the container, and sets you
 
 If you want to connect a camera and try some testing then add the tag `--device /dev/video0` to the command.
 
+### Building the image for ARM64 (e.g. Jetson) on an x64 host
+
+To build an arm64 image on an x64 Ubuntu server for deployment to Jetson or other arm64 hardware:
+
+**One-time setup** (run once on the x64 host to enable arm64 builds via QEMU):
+
+```bash
+# Enable QEMU so the x64 host can emulate arm64 during the build
+docker run --privileged --rm tonistiigi/binfmt --install all
+```
+
+1. **Build the arm64 image** (from the repo root):
+   ```bash
+   ./docker_build_arm64.sh
+   ```
+   Or manually:
+   ```bash
+   docker buildx build --platform linux/arm64 -t ros_vision:arm64 --load -f ./Dockerfile.arm64 .
+   ```
+   The build runs under QEMU emulation, so it will be slower than a native x64 build. The resulting image can be saved and transferred to the arm64 device, or pushed to a registry and pulled there.
+
+2. **Run on the arm64 device** (after transferring or pulling the image):
+   ```bash
+   docker run -it --runtime=nvidia --gpus all -p 8765:8765 -v /dev/v4l/:/dev/v4l ros_vision:arm64 /bin/bash
+   ```
+
 Now you can build just like you would outside the container:
 
 ```
