@@ -12,10 +12,6 @@ set(VISION_DEPS_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE INTERNAL "")
 
 find_package(ament_cmake REQUIRED)
 find_package(CUDA REQUIRED)
-find_package(glog REQUIRED)
-find_package(GTest REQUIRED)
-find_package(ZLIB REQUIRED)
-find_package(Threads REQUIRED)
 
 ProcessorCount(NUM_PROCESSORS)
 if(NUM_PROCESSORS EQUAL 0)
