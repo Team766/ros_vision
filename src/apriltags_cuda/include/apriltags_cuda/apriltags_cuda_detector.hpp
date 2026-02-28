@@ -216,4 +216,7 @@ class ApriltagsDetector : public rclcpp::Node {
   bool measurement_mode_ = false;
   std::string csv_path_;
   std::ofstream csv_file_;
+
+  // Visualization downsample factor (1 = no downsampling)
+  int visualization_downsample_factor_ = 1;
 };

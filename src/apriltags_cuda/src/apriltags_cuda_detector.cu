@@ -123,6 +123,12 @@ void ApriltagsDetector::setup_topics() {
       std::bind(&ApriltagsDetector::imageCallback, this,
                 std::placeholders::_1));
 
+  visualization_downsample_factor_ =
+      vision_utils::ConfigLoader::getVisualizationDownsampleFactor();
+  RCLCPP_INFO(this->get_logger(),
+              "Visualization downsample factor: %d",
+              visualization_downsample_factor_);
+
   RCLCPP_INFO(this->get_logger(), "Subscribed to topic: %s with optimized QoS",
               topic_name.c_str());
 }
@@ -511,8 +517,15 @@ void ApriltagsDetector::imageCallback(
   auto pub_camera_pose_end = std::chrono::high_resolution_clock::now();
 
   auto pub_image_start = std::chrono::high_resolution_clock::now();
+  cv::Mat vis_img;
+  if (visualization_downsample_factor_ > 1) {
+    double scale = 1.0 / visualization_downsample_factor_;
+    cv::resize(bgr_img, vis_img, cv::Size(), scale, scale, cv::INTER_AREA);
+  } else {
+    vis_img = bgr_img;
+  }
   auto outgoing_msg =
-      cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgr_img).toImageMsg();
+      cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", vis_img).toImageMsg();
   outgoing_msg->header.stamp = image_capture_time;
   outgoing_msg->header.frame_id = "apriltag_detections";
   image_pub_queue_->enqueue(outgoing_msg);

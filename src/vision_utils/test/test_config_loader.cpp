@@ -225,10 +225,51 @@ TEST_F(ConfigLoaderTest, EmptyConfigFile) {
   std::ofstream file(empty_config);
   file << "{}";
   file.close();
-  
+
   vision_utils::ConfigLoader::setConfigFilePath(empty_config.string());
-  
+
   auto config = vision_utils::ConfigLoader::getCameraConfig("CAM001");
-  
+
   EXPECT_FALSE(config.has_value());
+}
+
+// Test visualization downsample factor when present
+TEST_F(ConfigLoaderTest, VisualizationDownsampleFactorPresent) {
+  json config = {
+    {"camera_mounted_positions", json::object()},
+    {"visualization_downsample_factor", 4}
+  };
+
+  fs::path config_file = test_dir_ / "downsample_config.json";
+  std::ofstream file(config_file);
+  file << config.dump(2);
+  file.close();
+
+  vision_utils::ConfigLoader::setConfigFilePath(config_file.string());
+
+  EXPECT_EQ(vision_utils::ConfigLoader::getVisualizationDownsampleFactor(), 4);
+}
+
+// Test visualization downsample factor defaults to 1 when absent
+TEST_F(ConfigLoaderTest, VisualizationDownsampleFactorAbsent) {
+  vision_utils::ConfigLoader::setConfigFilePath(valid_config_path_);
+
+  EXPECT_EQ(vision_utils::ConfigLoader::getVisualizationDownsampleFactor(), 1);
+}
+
+// Test visualization downsample factor clamps negative values to 1
+TEST_F(ConfigLoaderTest, VisualizationDownsampleFactorNegative) {
+  json config = {
+    {"camera_mounted_positions", json::object()},
+    {"visualization_downsample_factor", -2}
+  };
+
+  fs::path config_file = test_dir_ / "downsample_negative_config.json";
+  std::ofstream file(config_file);
+  file << config.dump(2);
+  file.close();
+
+  vision_utils::ConfigLoader::setConfigFilePath(config_file.string());
+
+  EXPECT_EQ(vision_utils::ConfigLoader::getVisualizationDownsampleFactor(), 1);
 }
