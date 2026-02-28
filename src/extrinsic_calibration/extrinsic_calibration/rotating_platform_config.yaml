@@ -1,6 +1,8 @@
-frameset_dir: "/home/cpadwick/code/ros_vision/2026crunch/calibration_data_2026_02_13_20_53_19/"
-num_iterations: 2000 
-learning_rate: 0.01
+frameset_dir: "/home/cpadwick/data/feb20_rotating_platform/calibration_data_2026_02_20_18_50_50"
+num_iterations: 15000 
+learning_rate: 0.05
+lr_step_size: 5000    # decay LR every 5000 iterations
+lr_gamma: 0.5 
 cameras:
   cam13:
     intrinsics_filename: "/home/cpadwick/code/ros_vision/src/vision_config_data/data/calibration/calibrationmatrix_cam13.json"

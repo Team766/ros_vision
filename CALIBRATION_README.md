@@ -47,6 +47,15 @@ The arguments are:
 
 You don't have to specify all the arguments, but you must specify the serial argument.
 
+Experimental calibrator with frame rate fix:
+
+```
+ros2 run camera_calibration charuco_calibrator2 \
+    --ros-args -p camera_serial:=cam13 \
+    -p frame_rate_hz:=5.0 \
+    -p max_frames:=50
+```
+
 If everything is working properly what will happen is the usb_camera node will be started and will collect frames at a lower frame rate (currently 4 frames per second, specified in src/ros_vision_launch/launch/calibrate_camera.launch.py).  The camera_calibrator node will be started and subscribe to the raw image topic for the camera.  When a new image is detected the charuco board will attempt to be detected.  The detected markers will be drawn on the image and the image will be published to a /calibration topic.  You can view these topics in foxglove.
 
 After max_frames of detected markers are collected, the OpenCV calibration utility will be run and the calibration parameters will be saved to a file.  You will need to install the file into the source tree properly (typically src/vision_config_data/data/calibration) and rerun the build for the new calibration file to take effect.

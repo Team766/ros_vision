@@ -20,7 +20,7 @@ def read_yaml_file(file_path: str) -> Dict[str, Any]:
         return yaml.safe_load(file)
 
 
-def rotation_x_torch(angle_degrees):
+def rotation_x_torch(angle_degrees, device=None):
     """
     Returns a 3x3 rotation matrix (as a torch tensor) for a rotation about the X-axis.
     angle_degrees can be a torch scalar (with grad) or a float.
@@ -28,10 +28,11 @@ def rotation_x_torch(angle_degrees):
     if torch.is_tensor(angle_degrees):
         theta = angle_degrees * (torch.pi / 180.0)
     else:
+        target_device = device or torch.device("cpu")
         theta = torch.tensor(
             angle_degrees * (np.pi / 180.0),
             dtype=torch.float32,
-            device="cpu",
+            device=target_device,
             requires_grad=False,
         )
     c = torch.cos(theta)
@@ -47,17 +48,18 @@ def rotation_x_torch(angle_degrees):
     )
 
 
-def rotation_y_torch(angle_degrees):
+def rotation_y_torch(angle_degrees, device=None):
     """
     Returns a 3x3 rotation matrix (as a torch tensor) for a rotation about the Y-axis.
     """
     if torch.is_tensor(angle_degrees):
         theta = angle_degrees * (torch.pi / 180.0)
     else:
+        target_device = device or torch.device("cpu")
         theta = torch.tensor(
             angle_degrees * (np.pi / 180.0),
             dtype=torch.float32,
-            device="cpu",
+            device=target_device,
             requires_grad=False,
         )
     c = torch.cos(theta)
@@ -73,17 +75,18 @@ def rotation_y_torch(angle_degrees):
     )
 
 
-def rotation_z_torch(angle_degrees):
+def rotation_z_torch(angle_degrees, device=None):
     """
     Returns a 3x3 rotation matrix (as a torch tensor) for a rotation about the Z-axis.
     """
     if torch.is_tensor(angle_degrees):
         theta = angle_degrees * (torch.pi / 180.0)
     else:
+        target_device = device or torch.device("cpu")
         theta = torch.tensor(
             angle_degrees * (np.pi / 180.0),
             dtype=torch.float32,
-            device="cpu",
+            device=target_device,
             requires_grad=False,
         )
     c = torch.cos(theta)
@@ -99,18 +102,18 @@ def rotation_z_torch(angle_degrees):
     )
 
 
-def compose_rotations_xyz_torch(roll_deg, pitch_deg, yaw_deg):
+def compose_rotations_xyz_torch(roll_deg, pitch_deg, yaw_deg, device=None):
     """
     Compose rotations in the order Rx(roll) * Ry(pitch) * Rz(yaw).
     """
-    Rx = rotation_x_torch(roll_deg)
-    Ry = rotation_y_torch(pitch_deg)
-    Rz = rotation_z_torch(yaw_deg)
+    Rx = rotation_x_torch(roll_deg, device=device)
+    Ry = rotation_y_torch(pitch_deg, device=device)
+    Rz = rotation_z_torch(yaw_deg, device=device)
     return Rx @ Ry @ Rz
 
 
-def camera_to_robot_torch():
+def camera_to_robot_torch(device=None):
     """
     Converts camera coordinates to robot frame.
     """
-    return compose_rotations_xyz_torch(-90.0, 90.0, 0.0)
+    return compose_rotations_xyz_torch(-90.0, 90.0, 0.0, device=device)

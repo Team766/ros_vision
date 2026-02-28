@@ -12,6 +12,8 @@ def launch_setup(context, *args, **kwargs):
     board_rows = int(LaunchConfiguration('board_rows').perform(context))
     square_length = float(LaunchConfiguration('square_length').perform(context))
     marker_length = float(LaunchConfiguration('marker_length').perform(context))
+    frame_rate_hz = float(LaunchConfiguration('frame_rate_hz').perform(context))
+    consecutive_frames_required = int(LaunchConfiguration('consecutive_frames_required').perform(context))
 
     cameras_by_serial = scan_for_cameras()
     camera_positions = get_config_data(cameras_by_serial)
@@ -25,28 +27,19 @@ def launch_setup(context, *args, **kwargs):
 
     return [
         Node(
-            package='usb_camera',
-            executable='usb_camera_node',
-            name='camera_node',
-            parameters=[{
-                "camera_idx": camera_idx,
-                "camera_serial": serial,
-                "topic_name": camera_topic,
-            }]
-        ),
-        Node(
             package='camera_calibration',
-            executable='charuco_calibrator',
+            executable='charuco_calibrator2',
             name='charuco_calibrator',
             parameters=[{
-                "subscriber_topic": camera_topic,
                 "publisher_topic": f"/calibration/{cam_location}/image_annotated",
                 "camera_serial": serial,
                 "max_frames": max_frames,
                 "board_cols": board_cols,
                 "board_rows": board_rows,
                 "square_length": square_length,
-                "marker_length": marker_length
+                "marker_length": marker_length,
+                "frame_rate_hz": frame_rate_hz,
+                "consecutive_frames_required": consecutive_frames_required
             }]
         ),
         Node(
@@ -87,6 +80,16 @@ def generate_launch_description():
             "marker_length",
             description="Physical size of the charuco markers on the board",
             default_value="0.011",
+        ),
+        DeclareLaunchArgument(
+            "frame_rate_hz",
+            description="Collection frame rate in Hz",
+            default_value="2.0",
+        ),
+         DeclareLaunchArgument(
+            "consecutive_frames_required",
+            description="Number of consecutive detection frames required before counting a detection (delay)",
+            default_value="5",
         ),
         OpaqueFunction(function=launch_setup)
     ])

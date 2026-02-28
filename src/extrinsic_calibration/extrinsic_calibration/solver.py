@@ -13,10 +13,25 @@ import os
 
 # Try to import from local utils, fallback to standalone utils
 try:
-    from .utils import read_yaml_file, compose_rotations_xyz_torch, camera_to_robot_torch
+    from .utils import (
+        read_yaml_file,
+        compose_rotations_xyz_torch,
+        camera_to_robot_torch,
+    )
 except ImportError:
     # Standalone mode - import from same directory
     from utils import read_yaml_file, compose_rotations_xyz_torch, camera_to_robot_torch
+
+
+def get_device():
+    """Select CUDA device if available, otherwise CPU."""
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print(f"Using CUDA device: {torch.cuda.get_device_name(0)}")
+    else:
+        device = torch.device("cpu")
+        print("CUDA not available, using CPU")
+    return device
 
 
 def get_files(dir_name):
@@ -29,6 +44,12 @@ def get_files(dir_name):
     Returns:
         list: List of file paths matching the PNG file pattern.
     """
+
+    import os
+
+    if not os.path.exists(dir_name):
+        raise Exception(f"Error: directory does not exist {dir_name}")
+
     files = glob.glob(os.path.join(dir_name, "*.png"))
     return files
 
@@ -136,12 +157,13 @@ def setup_cameras(config):
     return camera_info, camera_params
 
 
-def create_torch_params(params):
+def create_torch_params(params, device):
     """
     Convert camera parameters into torch tensors for optimization.
 
     Args:
         params (dict): Camera parameters.
+        device (torch.device): Device to create tensors on.
 
     Returns:
         dict: Torch tensors for camera rotations and translations.
@@ -153,11 +175,13 @@ def create_torch_params(params):
         rotations = torch.tensor(
             rec["rotations"],
             dtype=torch.float32,
+            device=device,
             requires_grad=rotation_params_adjustable,
         )
         translation = torch.tensor(
             rec["translation"],
             dtype=torch.float32,
+            device=device,
             requires_grad=translation_params_adjustable,
         )
         torch_params[camid] = {"rotations": rotations, "translation": translation}
@@ -216,51 +240,109 @@ def generate_frameset(config, cams_dict):
     return frame_set
 
 
-def compute_loss(frameset, torch_params):
+def preprocess_frameset(frameset, cam_ids, device):
     """
-    Compute the loss based on the difference in detected AprilTag positions between pairs of cameras.
+    Pre-batch frameset observations into tensors for efficient GPU computation.
 
-    The loss function calculates the mean squared error between the positions of the same AprilTags as viewed from two cameras,
-    given the current estimates of camera parameters.
+    Extracts all tag observation pairs and organizes them into batched tensors
+    with pre-computed per-camera index masks, so compute_loss does no Python-level
+    looping or tensor allocation.
 
     Args:
-        frameset (dict): Frameset data containing detected AprilTag positions.
+        frameset (dict): Frameset data from generate_frameset.
+        cam_ids (list): List of camera IDs (keys of torch_params).
+        device (torch.device): Device to create tensors on.
+
+    Returns:
+        dict: Batched data with coords tensors and per-camera index masks.
+    """
+    all_coords_a = []
+    all_coords_b = []
+    all_cam_ids_a = []
+    all_cam_ids_b = []
+
+    for fsvalue in frameset.values():
+        for tagvalues in fsvalue.values():
+            if len(tagvalues) == 2:
+                all_coords_a.append(tagvalues[0]["translation"])
+                all_cam_ids_a.append(tagvalues[0]["cam_id"])
+                all_coords_b.append(tagvalues[1]["translation"])
+                all_cam_ids_b.append(tagvalues[1]["cam_id"])
+
+    num_pairs = len(all_coords_a)
+    print(f"Preprocessed {num_pairs} observation pairs for optimization")
+
+    # Stack all coords into (N, 3) tensors on device once
+    coords_a = torch.tensor(np.array(all_coords_a), dtype=torch.float32, device=device)
+    coords_b = torch.tensor(np.array(all_coords_b), dtype=torch.float32, device=device)
+
+    # Pre-compute per-camera index masks as tensors
+    masks_a = {}
+    masks_b = {}
+    for cam_id in cam_ids:
+        idx_a = [i for i, c in enumerate(all_cam_ids_a) if c == cam_id]
+        idx_b = [i for i, c in enumerate(all_cam_ids_b) if c == cam_id]
+        if idx_a:
+            masks_a[cam_id] = torch.tensor(idx_a, dtype=torch.long, device=device)
+        if idx_b:
+            masks_b[cam_id] = torch.tensor(idx_b, dtype=torch.long, device=device)
+
+    return {
+        "coords_a": coords_a,
+        "coords_b": coords_b,
+        "masks_a": masks_a,
+        "masks_b": masks_b,
+        "cam_ids": cam_ids,
+        "num_pairs": num_pairs,
+    }
+
+
+def compute_loss(batch_data, torch_params, device):
+    """
+    Compute the MSE loss using pre-batched observation data.
+
+    For each camera, applies the rotation and translation to all observations
+    from that camera in a single batched matmul, then computes pairwise differences.
+
+    Args:
+        batch_data (dict): Pre-batched data from preprocess_frameset.
         torch_params (dict): Current camera parameters as torch tensors.
+        device (torch.device): Device tensors live on.
 
     Returns:
         torch.Tensor: Computed mean squared error loss.
     """
+    coords_a = batch_data["coords_a"]  # (N, 3)
+    coords_b = batch_data["coords_b"]  # (N, 3)
 
-    pair_diffs = []
-    for fskey, fsvalue in frameset.items():
-        for tagid, tagvalues in fsvalue.items():
-            num_values = len(tagvalues)
-            if num_values == 2:  # skip if we didnt see the tag in 2 cameras.
-                pair = []
-                for tagvalue in tagvalues:
-                    cam_id = tagvalue["cam_id"]
-                    at_camera_coords = torch.tensor(
-                        tagvalue["translation"],
-                        dtype=torch.float32,
-                        requires_grad=False,
-                    )
-                    angles = torch_params[cam_id]["rotations"]
-                    trans = torch_params[cam_id]["translation"]
+    X_a = torch.empty_like(coords_a)
+    X_b = torch.empty_like(coords_b)
 
-                    R_cam = (
-                        compose_rotations_xyz_torch(angles[0], angles[1], angles[2])
-                        @ camera_to_robot_torch()
-                    )
-                    X_cam = R_cam @ at_camera_coords.T + trans
-                    pair.append(X_cam)
-                pair_diffs.append(pair[0] - pair[1])
+    for cam_id in batch_data["cam_ids"]:
+        angles = torch_params[cam_id]["rotations"]
+        trans = torch_params[cam_id]["translation"]
+        R_cam = compose_rotations_xyz_torch(
+            angles[0], angles[1], angles[2]
+        ) @ camera_to_robot_torch(device=device)
 
-    diffs_tensor = torch.stack(pair_diffs)
-    loss = torch.mean(torch.sum(diffs_tensor**2, dim=1))  # <-- MSE loss
+        # Side A: batched (3,3) @ (3,M) -> (3,M), then transpose back to (M,3)
+        if cam_id in batch_data["masks_a"]:
+            idx = batch_data["masks_a"][cam_id]
+            c = coords_a[idx]  # (M, 3)
+            X_a[idx] = (R_cam @ c.mT).mT + trans
+
+        # Side B
+        if cam_id in batch_data["masks_b"]:
+            idx = batch_data["masks_b"][cam_id]
+            c = coords_b[idx]  # (M, 3)
+            X_b[idx] = (R_cam @ c.mT).mT + trans
+
+    diffs = X_a - X_b
+    loss = torch.mean(torch.sum(diffs**2, dim=1))  # MSE loss
     return loss
 
 
-def run_optimizer(frameset, params, num_iterations=500, learning_rate=1e-2):
+def run_optimizer(frameset, params, device, num_iterations=500, learning_rate=1e-2):
     """
     Run optimization to refine camera parameters by minimizing differences in AprilTag positions between cameras.
 
@@ -269,6 +351,7 @@ def run_optimizer(frameset, params, num_iterations=500, learning_rate=1e-2):
     Args:
         frameset (dict): Frameset data containing detected AprilTag positions.
         params (dict): Initial camera parameters for optimization.
+        device (torch.device): Device to run optimization on.
         num_iterations (int, optional): Number of optimization iterations. Defaults to 500.
         learning_rate (float, optional): Learning rate for optimizer. Defaults to 1e-2.
 
@@ -276,7 +359,10 @@ def run_optimizer(frameset, params, num_iterations=500, learning_rate=1e-2):
         None. Prints optimization progress and final optimized parameters.
     """
 
-    torch_params = create_torch_params(params)
+    torch_params = create_torch_params(params, device)
+
+    # Pre-batch all observation data into GPU tensors once
+    batch_data = preprocess_frameset(frameset, list(torch_params.keys()), device)
 
     optimizer = optim.Adam(
         [p for cam_params in torch_params.values() for p in cam_params.values()],
@@ -285,7 +371,7 @@ def run_optimizer(frameset, params, num_iterations=500, learning_rate=1e-2):
 
     # get a baseline loss before we start optimizing.
     multiplier = 100.0
-    loss = compute_loss(frameset, torch_params)
+    loss = compute_loss(batch_data, torch_params, device)
     print("\n\n-------------------------------------------------")
     print(
         f"Initial Loss: {loss.item() * multiplier:.6f}, RMSE: {loss.item()**0.5 * multiplier:.6f}"
@@ -301,7 +387,7 @@ def run_optimizer(frameset, params, num_iterations=500, learning_rate=1e-2):
     progress_bar = trange(num_iterations, desc="Optimizing")
     for it in progress_bar:
         optimizer.zero_grad()
-        loss = compute_loss(frameset, torch_params)
+        loss = compute_loss(batch_data, torch_params, device)
         loss.backward()
         optimizer.step()
 
@@ -331,8 +417,8 @@ def print_updated_params(torch_params):
         print(f"Camera ID: {camid}")
         print(f"Rotations: {rec['rotations']}")
         print(f"Translation: {rec['translation']}")
-        angles = rec["rotations"].detach().numpy()
-        translation = rec["translation"].detach().numpy()
+        angles = rec["rotations"].detach().cpu().numpy()
+        translation = rec["translation"].detach().cpu().numpy()
         R_cam = (
             compose_rotations_xyz_torch(angles[0], angles[1], angles[2])
             @ camera_to_robot_torch()
@@ -340,7 +426,7 @@ def print_updated_params(torch_params):
         print(
             json.dumps(
                 {
-                    "rotation": R_cam.detach().numpy().tolist(),
+                    "rotation": R_cam.detach().cpu().numpy().tolist(),
                     "offset": translation.tolist(),
                 },
                 indent=4,
@@ -355,8 +441,9 @@ def main(args=None):
     )
     parser.add_argument("config", type=str, help="Path to configuration file")
     parsed_args = parser.parse_args(args)
-    
+
     config = read_yaml_file(parsed_args.config)
+    device = get_device()
 
     camera_info, camera_params = setup_cameras(config)
     print("Camera Info:")
@@ -369,6 +456,7 @@ def main(args=None):
     run_optimizer(
         frameset,
         camera_params,
+        device,
         num_iterations=config["num_iterations"],
         learning_rate=config["learning_rate"],
     )

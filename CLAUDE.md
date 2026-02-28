@@ -6,17 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Initial Setup and Build
 ```bash
-# Source ROS2 and set build environment
 source /opt/ros/humble/setup.bash
 source ./build_env_vars.sh
 
-# First-time build (pulls dependencies like OpenCV, WpiLIB)
+# First-time build (builds OpenCV, WPILib, and other deps from source)
 ./bootstrap.sh
 ```
 
 ### Regular Development Build
 ```bash
-# Source environment
 source /opt/ros/humble/setup.bash
 source ./build_env_vars.sh
 source install/setup.bash
@@ -28,148 +26,143 @@ colcon build
 colcon build --packages-select apriltags_cuda
 colcon build --packages-select usb_camera
 colcon build --packages-select vision_utils
+colcon build --packages-select game_piece_detection
+
+# Config-only change (no C++ recompile needed)
+colcon build --packages-select vision_config_data
 ```
 
 ### Testing
 ```bash
-# Run tests for all packages
-colcon test
+# Run all tests (requires GPU)
+./run_tests.sh
+
+# Run CPU-only tests (skips gpu_detector_test, suitable for CI)
+./run_tests.sh --cpu-only
 
 # Run tests for specific package
-colcon test --packages-select apriltags_cuda
+./run_tests.sh --packages-select apriltags_cuda
 
 # View test results
 colcon test-result --all
 ```
 
-### Versioned Release and Bundle Creation
+Tests use `ament_cmake_gtest`. CUDA test files use `.cu` extension. The `gpu_detector_test` requires an NVIDIA GPU; all other tests are CPU-only.
 
-The workspace uses semantic versioning for deployment bundles while keeping individual package versions independent.
-
-#### Version Management
+To run a single test by name (useful during development):
 ```bash
-# Show current workspace version and package versions
-./version_manager.sh show
-
-# Manually set workspace version
-./version_manager.sh set 1.0.0
-
-# Bump workspace version
-./version_manager.sh bump patch  # 1.0.0 -> 1.0.1
-./version_manager.sh bump minor  # 1.0.1 -> 1.1.0
-./version_manager.sh bump major  # 1.1.0 -> 2.0.0
+colcon test --packages-select apriltags_cuda --ctest-args "-R" "coordinate_transform_test"
 ```
 
-#### Release Process
+### Release and Deployment
 ```bash
-# Complete release workflow (bump version, build, bundle, tag)
-./release.sh patch    # Patch release: 1.0.0 -> 1.0.1
-./release.sh minor    # Minor release: 1.0.1 -> 1.1.0  
-./release.sh major    # Major release: 1.1.0 -> 2.0.0
+# Full release: bump version, build, bundle, git tag
+./release.sh patch    # 1.0.0 -> 1.0.1
+./release.sh minor    # 1.0.1 -> 1.1.0
+./release.sh major    # 1.1.0 -> 2.0.0
 
-# Build workspace and create versioned bundle (no version bump)
+# Build and create bundle without version bump
 ./release.sh bundle
 
-# Create versioned bundle without building (fastest)
+# Create bundle from existing build (fastest)
 ./release.sh bundle-only
 
-# Show version information
-./release.sh version
+# Version management
+./version_manager.sh show
+./version_manager.sh bump patch
 ```
 
-#### Bundle Details
-- Creates `ros_vision_bundle-v{version}.tar.gz` (e.g., `ros_vision_bundle-v1.0.1.tar.gz`)
-- Contains complete install directory with all dependencies
-- Symlinks are dereferenced (copied as actual files) for portability
-- Includes all libraries, binaries, and configuration files needed for deployment
-- Workspace versioning is independent of individual package.xml versions
+Bundles are `ros_vision_bundle-v{version}.tar.gz` containing the full install directory with dereferenced symlinks for portable deployment. Workspace version lives in `VERSION` file (separate from per-package `package.xml` versions).
 
-## Launch Commands
-
-### Standard Launch
+### Docker Build
 ```bash
+docker build -t ros_vision:latest .
+docker run -it -v/tmp:/tmp --runtime=nvidia --gpus all -p 8765:8765 \
+  -v /dev/v4l/:/dev/v4l --device /dev/video0 \
+  --user $(id -u):$(id -g) -e USER=$USER -e HOME=$HOME \
+  -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro \
+  -v /home/$USER:/home/$USER ros_vision:latest /bin/bash
+```
+
+## Launch
+```bash
+# Recommended: convenience script that sources everything
+./start_vision.bsh
+
+# Manual launch
 source install/setup.bash
 ros2 launch ros_vision_launch launch_vision.py
-```
 
-### Optimized Launch (Low Latency)
-```bash
-# Uses CPU pinning and real-time scheduling
-./optimized_launch.bsh
-```
-
-### Launch with Options
-```bash
-# Disable bag recording
+# With options
 ros2 launch ros_vision_launch launch_vision.py enable_bag_recording:=false
-
-# Enable measurement mode for timing analysis
 ros2 launch ros_vision_launch launch_vision.py measurement_mode:=true
-
-# Set log level
 ros2 launch ros_vision_launch launch_vision.py log_level:=debug
+
+# Optimized launch with CPU pinning and real-time scheduling
+./optimized_launch.bsh
+
+# Measurement mode (generates timing CSV for latency analysis)
+./start_vision.bsh measurement_mode:=true
+# Then analyze with: python src/vision_utils/timing_report.py <csv_file>
+```
+
+### Install as System Service
+```bash
+./install_service.bsh
+systemctl status ros_vision.service
+journalctl -u ros_vision.service
 ```
 
 ## High-Level Architecture
 
-This is a ROS2-based computer vision system designed for robotics applications, specifically for Team 766. The system provides real-time AprilTag detection using CUDA acceleration.
+ROS2 Humble computer vision system for FRC Team 766. Provides real-time AprilTag detection (CUDA-accelerated) and game piece detection (YOLOv11/TensorRT). Deployed on Jetson Orin.
 
-### Core Components
+### Pipeline Flow
 
-#### 1. Camera Pipeline
-- **usb_camera**: USB camera capture node that auto-detects cameras by serial number
-- **apriltags_cuda**: GPU-accelerated AprilTag detection and pose estimation
-- **seasocks_viewer**: Web-based image viewer as alternative to Foxglove
+1. **usb_camera** captures frames, publishes to `cameras/{location}/image_raw`
+2. **apriltags_cuda** subscribes, runs full detection on GPU, publishes poses to `apriltags/{location}/pose` and annotated images to `apriltags/{location}/images`
+3. **game_piece_detection** runs YOLOv11 via TensorRT for object detection
+4. Pose estimates are sent to robot via WPILib **NetworkTables** (address configured in `system_config.json` under `network_tables_config`)
 
-#### 2. Configuration System
-- **vision_config_data**: Centralized configuration for cameras, calibration, and system settings
-- **system_config.json**: Main configuration file mapping camera serials to locations
-- **calibration files**: Per-camera calibration matrices in JSON format
+### Camera Auto-Discovery
 
-#### 3. Performance Optimization
-- **vision_utils**: Utilities for CPU pinning and real-time scheduling
-- **process_scheduler.hpp**: Core scheduling and CPU affinity management
-- Supports binding processes to specific CPU cores with real-time priorities
+The launch system (`src/ros_vision_launch/launch/launch_vision.py`) scans `/dev/v4l/by-id/` for cameras, extracts serial numbers, maps them to locations via `system_config.json` `camera_mounted_positions`, and generates camera + detector node pairs dynamically. Topic names use `{location}` template substitution (e.g., `cameras/center/image_raw`) to scale automatically with no code changes when adding cameras.
 
-#### 4. Data Transport
-- **image_transport_plugins**: Compressed image transport for bandwidth efficiency
-- **foxglove_bridge**: Integration with Foxglove Studio for visualization
-- **ROS bag recording**: Built-in data recording with configurable topics
+### Configuration System
 
-### Package Structure
+All configuration lives in `src/vision_config_data/data/`:
+- **`system_config.json`** - Central config: camera serial-to-location mapping (`camera_mounted_positions`), per-camera settings (resolution, format, frame rate, API preference), extrinsics (rotation matrices + offsets), bag recording topics, CPU pinning config, NetworkTables address, game piece detection settings
+- **`calibration/calibrationmatrix_{serial}.json`** - Per-camera intrinsic calibration
 
-- `apriltags_cuda/`: CUDA-based AprilTag detection with custom CUDA kernels
-- `usb_camera/`: Camera capture with OpenCV backend
-- `vision_utils/`: Shared utilities (config loading, scheduling, rotation math)
-- `vision_config_data/`: Configuration files and calibration data
-- `ros_vision_launch/`: Main launch system with camera auto-detection
-- `seasocks_viewer/`: Alternative web viewer using Seasocks library
-- `external/`: External dependency management (vision_deps)
+Changing config only requires rebuilding `vision_config_data` (`colcon build --packages-select vision_config_data`), not C++ packages.
 
-### Key Features
+### Build System Details
 
-#### Camera Auto-Detection
-The system automatically scans `/dev/v4l/by-id/` for camera devices, extracts serial numbers, and maps them to configured locations. Supports multiple camera patterns including Arducam devices.
+- Uses **Clang 17** as both C++ and CUDA compiler (better C++20 support than nvcc)
+- `CMAKE_CUDA_ARCHITECTURES` in `build_env_vars.sh` must match your GPU (default: 87 for Jetson Orin). Find yours with `nvidia-smi --query-gpu compute_cap --format=csv` (report format `X.Y`, config needs `XY`)
+- External dependencies built from source via `ExternalProject_Add` in `src/external/CMakeLists.txt`: OpenCV 4.9.0 (with CUDA), WPILib, NVIDIA CCCL, nlohmann/json, AprilTag (FRC 971 fork), Seasocks
+- Custom OpenCV must build **before** cv_bridge (`bootstrap.sh` handles ordering)
+- All packages link explicitly to custom deps via RPATH to avoid system library conflicts
+- Code style: Google C++ (clang-format)
 
-#### Performance Optimization
-- CPU core pinning for camera and AprilTags processes
-- Real-time FIFO scheduling with configurable priorities  
-- Jetson-specific optimizations with `jetson_clocks`
-- Sequential core assignment for multi-camera setups
+### Packages
 
-#### Configuration-Driven
-All camera settings (resolution, format, frame rate) are configured via JSON rather than hardcoded. The system supports camera location mapping, extrinsics, and bag recording configuration.
+- **apriltags_cuda** - CUDA kernels for full GPU-side AprilTag detection pipeline (threshold -> label -> quad detect -> decode -> pose). Custom ROS messages: `TagDetection.msg`, `TagDetectionArray.msg`
+- **usb_camera** - Camera capture with OpenCV backend, abstracted camera interface for testability (see `test/mock_camera.hpp`)
+- **game_piece_detection** - YOLOv11 inference via TensorRT (FP16/INT8). Model pipeline: PyTorch (.pt) -> ONNX -> TensorRT (.engine). Models downloaded via `src/game_piece_detection/models/download_models.sh`
+- **vision_utils** - Shared library: `ConfigLoader` (JSON config), `ProcessScheduler` (CPU pinning + RT scheduling), rotation utilities
+- **vision_config_data** - JSON config files, calibration data (ament resource package)
+- **ros_vision_launch** - Launch files with auto-discovery logic. Utility functions in `src/ros_vision_launch/ros_vision_launch/utils.py`
+- **camera_calibration** / **extrinsic_calibration** - Calibration tools (Charuco/Checkerboard)
+- **seasocks_viewer** - WebSocket-based image viewer
+- **bag_utils** - Python utilities for extracting images from ROS bag files
+- **image_transport_plugins** / **vision_opencv** - Vendored ROS packages (cv_bridge, image_transport) built from source to link against the custom OpenCV
+- **external/vision_deps** - All third-party dependency builds
 
-#### CUDA Integration
-AprilTag detection runs entirely on GPU using custom CUDA kernels for maximum performance. The system requires NVIDIA GPU with appropriate compute capability.
+### CPU Pinning Pattern
 
-### WSL Support
+Nodes accept `pin_to_core` and `priority` ROS parameters. The launch system assigns sequential cores: camera N gets core N*2, its detector gets core N*2+1. Available cores are configured in `system_config.json` under `performance_optimization`. Requires `rtprio` permissions in `/etc/security/limits.conf`.
 
-The system includes comprehensive WSL support via usbipd-win for USB camera forwarding from Windows to WSL2. See WSL_README.md for setup details.
+### CI/CD
 
-### Timing Analysis
-
-Built-in measurement mode captures detailed timing metrics for performance analysis:
-- CSV logging of detection timing
-- Python utilities for generating timing reports and plots
-- Comprehensive statistics including CDF analysis
+GitHub Actions (`.github/workflows/cmake-single-platform.yml`): Docker-based builds, build caching by source hash, CPU-only tests, artifact upload of bundles. Multi-arch workflow supports amd64 + arm64 via QEMU.

@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'charuco_calibrator = camera_calibration.charuco_camera_calibrator:main',
+            'charuco_calibrator2 = camera_calibration.charuco_camera_calibrator2:main',
             'checkerboard_calibrator = camera_calibration.checkerboard_camera_calibrator:main'
         ],
     },

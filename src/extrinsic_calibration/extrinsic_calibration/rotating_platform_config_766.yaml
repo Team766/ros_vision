@@ -1,0 +1,12 @@
+frameset_dir: "/home/cpadwick/data/feb20_rotating_platform/calibration_data_2026_02_20_18_50_59"
+num_iterations: 15000 
+learning_rate: 0.05
+lr_step_size: 5000    # decay LR every 5000 iterations
+lr_gamma: 0.5 
+cameras:
+  "766":
+    intrinsics_filename: "/home/cpadwick/code/ros_vision/src/vision_config_data/data/calibration/calibrationmatrix_766.json"
+    initial_rotations_degrees: [0.0, 0.0, 90.0]
+    initial_translation_meters: [0.2797, 0.3556, 0.4826]
+    rotation_params_adjustable: True
+    translation_params_adjustable: True
