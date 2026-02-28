@@ -124,6 +124,12 @@ public:
   static int apiStringToCode(const std::string & api_str);
 
   /**
+   * @brief Get visualization downsample factor
+   * @return Downsample factor (1 = no downsampling)
+   */
+  static int getVisualizationDownsampleFactor();
+
+  /**
    * @brief Force reload of configuration (useful for testing)
    */
   static void reloadConfig();
@@ -153,6 +159,7 @@ private:
   static std::map<std::string, ExtrinsicConfig> extrinsic_configs_;
   static NetworkTablesConfig network_config_;
   static std::string custom_config_path_;  // For testing
+  static int visualization_downsample_factor_;
 };
 
 }  // namespace vision_utils

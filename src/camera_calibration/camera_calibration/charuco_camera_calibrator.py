@@ -70,6 +70,9 @@ class CharucoCalibrationNode(Node):
         self.consecutive_frames_detected = 0
         self.calibrate_every_n_frames = 10
 
+        from ros_vision_launch.utils import get_visualization_downsample_factor
+        self.visualization_downsample_factor = get_visualization_downsample_factor()
+
     def image_callback(self, msg):
         if self.calibration_done:
             return
@@ -92,7 +95,9 @@ class CharucoCalibrationNode(Node):
             self.get_logger().info(f"Captured frame {self.captured_frames}/{self.max_frames}")
             self.consecutive_frames_detected = 0
 
-        annotated_image_msg = self.bridge.cv2_to_imgmsg(img, encoding='bgr8')
+        from ros_vision_launch.utils import downsample_for_visualization
+        pub_img = downsample_for_visualization(img, factor=self.visualization_downsample_factor)
+        annotated_image_msg = self.bridge.cv2_to_imgmsg(pub_img, encoding='bgr8')
         self.publisher.publish(annotated_image_msg)
 
         if self.captured_frames >= self.max_frames:

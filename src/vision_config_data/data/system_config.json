@@ -201,5 +201,6 @@
         "engine_file": "install/game_piece_detection/share/game_piece_detection/models/2026_rebuilt/rgb/rebuilt-yolov11-orin-fp16.engine",
         "input_channels": 3,
         "class_names": ["ball"]
-    }
+    },
+    "visualization_downsample_factor": 1
 }

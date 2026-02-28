@@ -30,6 +30,7 @@ std::map<std::string, CameraConfig> ConfigLoader::camera_configs_;
 std::map<std::string, ExtrinsicConfig> ConfigLoader::extrinsic_configs_;
 NetworkTablesConfig ConfigLoader::network_config_;
 std::string ConfigLoader::custom_config_path_ = "";
+int ConfigLoader::visualization_downsample_factor_ = 1;
 
 std::string ConfigLoader::getConfigFilePath()
 {
@@ -151,6 +152,15 @@ bool ConfigLoader::loadSystemConfig()
     }
   }
 
+  // Parse visualization downsample factor
+  if (root.contains("visualization_downsample_factor") &&
+      root["visualization_downsample_factor"].is_number_integer()) {
+    visualization_downsample_factor_ = root["visualization_downsample_factor"];
+    if (visualization_downsample_factor_ < 1) {
+      visualization_downsample_factor_ = 1;
+    }
+  }
+
   config_loaded_ = true;
   return true;
 }
@@ -226,12 +236,21 @@ int ConfigLoader::apiStringToCode(const std::string & api_str)
   return 200;
 }
 
+int ConfigLoader::getVisualizationDownsampleFactor()
+{
+  if (!loadSystemConfig()) {
+    return 1;
+  }
+  return visualization_downsample_factor_;
+}
+
 void ConfigLoader::reloadConfig()
 {
   config_loaded_ = false;
   camera_configs_.clear();
   extrinsic_configs_.clear();
   network_config_ = NetworkTablesConfig();
+  visualization_downsample_factor_ = 1;
 }
 
 void ConfigLoader::setConfigFilePath(const std::string & path)

@@ -284,6 +284,67 @@ def scan_for_cameras():
     return result
 
 
+def load_system_config():
+    """
+    Load and return the full system_config.json as a dict.
+
+    Returns:
+        dict: Parsed contents of system_config.json.
+
+    Raises:
+        FileNotFoundError: If the config file does not exist.
+    """
+    data_path = os.path.join(
+        get_package_share_directory("vision_config_data"), "data", "system_config.json"
+    )
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"System config file not found at {data_path}")
+    with open(data_path, "r") as f:
+        return json.load(f)
+
+
+def get_visualization_downsample_factor():
+    """
+    Read the visualization downsample factor from system_config.json.
+
+    Returns:
+        int: Downsample factor (>= 1). Returns 1 if the field is absent or invalid.
+    """
+    try:
+        config = load_system_config()
+        factor = int(config.get("visualization_downsample_factor", 1))
+        return max(1, factor)
+    except Exception as e:
+        logger.warning(f"Could not load visualization_downsample_factor: {e}")
+        return 1
+
+
+def downsample_for_visualization(image, factor=None):
+    """
+    Downsample an image for visualization publishing.
+
+    If factor is None, it is read from system_config.json via
+    get_visualization_downsample_factor(). Pass an explicit factor to
+    avoid re-reading the config on every call.
+
+    Args:
+        image: numpy array (OpenCV image).
+        factor: int downsample factor (1 = no-op). If None, read from config.
+
+    Returns:
+        numpy array: The (possibly downsampled) image.
+    """
+    import cv2
+
+    if factor is None:
+        factor = get_visualization_downsample_factor()
+    if factor <= 1:
+        return image
+    new_w = image.shape[1] // factor
+    new_h = image.shape[0] // factor
+    return cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+
 def check_format(config_data):
     """
     Placeholder function to validate the format of the configuration data.
