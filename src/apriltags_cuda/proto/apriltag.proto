@@ -1,0 +1,17 @@
+syntax = "proto2";
+
+package com.team766.vision;
+option java_multiple_files = true;
+
+message ApriltagProto {
+    required double collect_time = 1;
+    required int32 tag_id = 2;
+    required double x = 3;
+    required double y = 4;
+    required double z = 5;
+    // TODO: consider adding covariance, rotation
+}
+
+message ApriltagListProto {
+    repeated ApriltagProto tags = 1;
+}

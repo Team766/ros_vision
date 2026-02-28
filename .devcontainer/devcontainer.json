@@ -1,0 +1,15 @@
+{
+    "name": "ROS Vision Development",
+    "dockerFile": "../Dockerfile",
+    "remoteUser": "vscode",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cmake-tools",
+                "ms-python.python"
+            ]
+        }
+    },
+    "postCreateCommand": "mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release .. && make -j4",
+    "forwardPorts": []
+}

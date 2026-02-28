@@ -68,6 +68,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/TagDetectionArray.msg"
 )
 
+find_package(Protobuf REQUIRED)
+
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS proto/apriltag.proto)
+
 set(CUDA_LIB_SOURCES 
     src/apriltag_detect.cu 
     src/apriltag_gpu.cu
@@ -78,21 +82,24 @@ set(CUDA_LIB_SOURCES
     src/threshold.cu
     src/apriltag_utils.cu
     src/apriltags_cuda_detector.cu
-    src/DoubleArraySender.cpp
-    src/NetworkTablesUtil.cpp)
+    src/AprilTagDataSender.cpp
+    src/NetworkTablesUtil.cpp
+    ${PROTO_SRCS})
 
 # Add a library with the above source files
 add_library(apriltags_cuda_core SHARED ${CUDA_LIB_SOURCES})
 
 # Add dependencies for the core library since it now includes ROS-dependent code
 ament_target_dependencies(apriltags_cuda_core rclcpp sensor_msgs cv_bridge image_transport vision_deps vision_utils rosidl_default_runtime)
+target_link_libraries(apriltags_cuda_core ${Protobuf_LIBRARIES})
 
 #add_dependencies(apriltags_cuda_core vision_deps_external vision_utils)
 
 add_executable(apriltags_cuda_node src/apriltags_cuda_node.cu)
 target_include_directories(apriltags_cuda_node PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(apriltags_cuda_node ${PROJECT_NAME}__rosidl_typesupport_cpp)
 
 ament_target_dependencies(apriltags_cuda_node rclcpp sensor_msgs cv_bridge image_transport vision_deps vision_utils rosidl_default_runtime)
@@ -107,7 +114,8 @@ target_link_libraries(apriltags_cuda_node
     ${VISION_DEPS_INSTALL_DIR}/opencv-install/lib/libopencv_imgcodecs.so
     ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libntcore.so
     ${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib/libwpiutil.so
-    glog::glog)
+    glog::glog
+    ${Protobuf_LIBRARIES})
 
 set_target_properties(apriltags_cuda_node PROPERTIES
     BUILD_RPATH "${VISION_DEPS_INSTALL_DIR}/apriltag-install/lib;${VISION_DEPS_INSTALL_DIR}/opencv-install/lib;${VISION_DEPS_INSTALL_DIR}/wpilib-install/lib"

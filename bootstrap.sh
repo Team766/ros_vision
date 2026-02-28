@@ -34,8 +34,9 @@ if [ ! -e "install/cv_bridge/lib/libcv_bridge.so" ] ; then
     colcon build --packages-select cv_bridge
 fi
 
-# Now build the image transport packages
-colcon build --packages-select compressed_image_transport theora_image_transport
+# Now build the image transport packages (allow overriding ROS-provided plugins)
+colcon build --packages-select compressed_image_transport theora_image_transport \
+  --allow-overriding compressed_image_transport theora_image_transport
 
 # Download YOLO models if not present
 if [ ! -d "src/game_piece_detection/models/2026_rebuilt" ] ; then
@@ -48,4 +49,4 @@ fi
 
 # Now we should be good to go for the rest of the build
 echo "Building all"
-colcon build
+colcon build --allow-overriding compressed_image_transport theora_image_transport
