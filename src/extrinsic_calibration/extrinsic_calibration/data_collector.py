@@ -15,6 +15,7 @@ from typing import Dict, List, Any
 
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
+from ros_vision_launch.utils import downsample_for_visualization, get_visualization_downsample_factor
 
 
 class DataCollectorNode(Node):
@@ -109,12 +110,6 @@ class DataCollectorNode(Node):
             
         camera_mounted_positions = config_data["camera_mounted_positions"]
 
-        # Read visualization downsample factor (default 1 = no downsampling)
-        self.visualization_downsample_factor = config_data.get("visualization_downsample_factor", 1)
-        if self.visualization_downsample_factor < 1:
-            self.visualization_downsample_factor = 1
-        self.get_logger().info(f'Visualization downsample factor: {self.visualization_downsample_factor}')
-
         # Extract camera configs for our serial IDs
         result = {}
         for serial_id in self.serial_ids:
@@ -207,6 +202,7 @@ class DataCollectorNode(Node):
         end_time = start_time + self.capture_length_seconds
         image_sets = []
         image_cap_idx = 1
+        vis_downsample_factor = get_visualization_downsample_factor()
         
         self.get_logger().info('Starting frame collection...')
         
@@ -229,11 +225,7 @@ class DataCollectorNode(Node):
                 
                 # Publish image to ROS topic (downsampled for visualization)
                 try:
-                    pub_frame = frame
-                    if self.visualization_downsample_factor > 1:
-                        new_w = frame.shape[1] // self.visualization_downsample_factor
-                        new_h = frame.shape[0] // self.visualization_downsample_factor
-                        pub_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                    pub_frame = downsample_for_visualization(frame, factor=vis_downsample_factor)
                     ros_image = self.bridge.cv2_to_imgmsg(pub_frame, encoding='bgr8')
                     ros_image.header.stamp = self.get_clock().now().to_msg()
                     ros_image.header.frame_id = f'camera_{cam["location"]}'

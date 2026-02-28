@@ -62,18 +62,8 @@ class CheckerboardCalibrationNode(Node):
         self.num_consecutive_frames_detected = 0
         self.calibrate_every_n_frames = 10
 
-        # Load visualization downsample factor from system config
-        self.visualization_downsample_factor = 1
-        try:
-            from ament_index_python.packages import get_package_share_directory
-            config_path = os.path.join(
-                get_package_share_directory("vision_config_data"), "data", "system_config.json"
-            )
-            with open(config_path, "r") as f:
-                sys_config = json.load(f)
-            self.visualization_downsample_factor = max(1, sys_config.get("visualization_downsample_factor", 1))
-        except Exception:
-            pass
+        from ros_vision_launch.utils import get_visualization_downsample_factor
+        self.visualization_downsample_factor = get_visualization_downsample_factor()
 
     def image_callback(self, msg):
         if self.calibration_done:
@@ -107,11 +97,8 @@ class CheckerboardCalibrationNode(Node):
             self.get_logger().info(f"Captured frame {self.captured_frames}/{self.max_frames}")
             self.num_consecutive_frames_detected = 0
 
-        pub_img = img
-        if self.visualization_downsample_factor > 1:
-            new_w = img.shape[1] // self.visualization_downsample_factor
-            new_h = img.shape[0] // self.visualization_downsample_factor
-            pub_img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        from ros_vision_launch.utils import downsample_for_visualization
+        pub_img = downsample_for_visualization(img, factor=self.visualization_downsample_factor)
         annotated_image_msg = self.bridge.cv2_to_imgmsg(pub_img, encoding='bgr8')
         self.publisher.publish(annotated_image_msg)
 
